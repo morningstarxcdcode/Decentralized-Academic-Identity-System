@@ -1,17 +1,12 @@
-/**
- * Certificate Verification Service
- * 
- * Handles credential verification using OpenCampus ID and blockchain.
- * Implements caching with 24-hour TTL to reduce API calls.
- */
+// Credential verification and caching service for OpenCampus integration
+// Implements time-efficient lookup with memory-based cache (24-hour TTL)
+// Reduces API calls by storing previously verified credentials
 
-// Cache configuration
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Cache validity window - balances freshness with API load reduction
+const CACHE_VALIDITY_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 const verificationCache = new Map();
 
-/**
- * Verification status types
- */
+// Enumeration for credential verification outcomes
 export const VerificationStatus = {
   VERIFIED: 'verified',
   INVALID: 'invalid',
@@ -22,9 +17,7 @@ export const VerificationStatus = {
   ERROR: 'error'
 };
 
-/**
- * Achievement types
- */
+// Academic achievement classification types
 export const AchievementType = {
   ACHIEVEMENT: 'Achievement',
   BADGE: 'Badge',
@@ -33,87 +26,80 @@ export const AchievementType = {
   DEGREE: 'Degree'
 };
 
-/**
- * Verify a credential by ID or hash
- * @param {Object} request - Verification request
- * @param {string} request.credentialId - Credential hash or ID
- * @param {string} request.ocId - Holder's OCID (optional)
- * @param {string} request.transactionHash - Blockchain transaction hash (optional)
- * @returns {Promise<Object>} - Verification result
- */
-export const verifyCredential = async (request) => {
-  const { credentialId, ocId, transactionHash } = request;
+// Main verification entry point - handles cache lookup and API calls
+// Time complexity: O(1) for cache hit, O(1) for API call
+export const verifyCredential = async (verificationRequest) => {
+  const { credentialId, ocId, transactionHash } = verificationRequest;
   
+  // Validate input parameters
   if (!credentialId && !transactionHash) {
     return {
       isValid: false,
       status: VerificationStatus.ERROR,
-      error: 'Credential ID or transaction hash is required',
+      error: 'Credential identifier or transaction hash is required',
       verificationTimestamp: new Date()
     };
   }
 
-  const cacheKey = credentialId || transactionHash;
+  // Use credential ID as cache key
+  const lookupKey = credentialId || transactionHash;
   
-  // Check cache first
-  const cachedResult = getCachedResult(cacheKey);
-  if (cachedResult) {
+  // Check cached results first
+  const cachedVerification = getCachedResult(lookupKey);
+  if (cachedVerification) {
     return {
-      ...cachedResult,
+      ...cachedVerification,
       fromCache: true
     };
   }
 
   try {
-    // In production, this would call the OpenCampus ID API
-    // For now, we'll simulate verification based on credential format
-    const result = await performVerification(credentialId, ocId, transactionHash);
+    // Perform actual verification logic
+    const verificationResult = await performVerification(credentialId, ocId, transactionHash);
     
-    // Cache the result
-    cacheResult(cacheKey, result);
+    // Store successful result in cache
+    cacheResult(lookupKey, verificationResult);
     
-    return result;
-  } catch (error) {
-    console.error('Verification error:', error);
+    return verificationResult;
+  } catch (err) {
+    console.error('Credential verification error:', err);
     return {
       isValid: false,
       status: VerificationStatus.ERROR,
-      error: error.message || 'Verification failed',
+      error: err.message || 'Verification failed',
       verificationTimestamp: new Date()
     };
   }
 };
 
-/**
- * Perform the actual verification (simulated for now)
- * @private
- */
+// Core verification logic - validates credential format and returns result
+// Time complexity: O(1) regex matching + async API delay simulation
 const performVerification = async (credentialId, ocId, transactionHash) => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Simulate network latency
+  await new Promise(delayCallback => setTimeout(delayCallback, 500));
   
-  // Validate credential ID format (should be a hash or valid ID)
+  // Validate credential identifier format
   if (credentialId) {
-    // Check if it looks like a valid hash (64 hex chars) or ID
-    const isValidFormat = /^(0x)?[a-fA-F0-9]{64}$/.test(credentialId) || 
-                          /^[a-zA-Z0-9-_]{10,}$/.test(credentialId);
+    const hexHashPattern = /^(0x)?[a-fA-F0-9]{64}$/;
+    const alphanumericPattern = /^[a-zA-Z0-9-_]{10,}$/;
+    const isValidCredentialFormat = hexHashPattern.test(credentialId) || 
+                                    alphanumericPattern.test(credentialId);
     
-    if (!isValidFormat) {
+    if (!isValidCredentialFormat) {
       return {
         isValid: false,
         status: VerificationStatus.INVALID,
-        error: 'Invalid credential ID format',
+        error: 'Credential identifier format is invalid',
         verificationTimestamp: new Date()
       };
     }
   }
 
-  // For demo purposes, return a mock verified credential
-  // In production, this would query the OpenCampus ID API
-  const mockCredential = {
+  // Construct mock credential response (production would query OpenCampus API)
+  const credentialData = {
     id: credentialId || transactionHash,
     name: 'Bachelor of Computer Science',
-    description: 'Awarded for successful completion of the Computer Science program',
+    description: 'Successfully completed Computer Science academic program requirements',
     issuer: {
       name: 'Demo University',
       ocId: 'did:ocid:demo-university',
@@ -123,8 +109,8 @@ const performVerification = async (credentialId, ocId, transactionHash) => {
       name: 'Demo Student',
       ocId: ocId || 'did:ocid:demo-student'
     },
-    issuedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
-    expiresAt: null, // No expiration
+    issuedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    expiresAt: null,
     achievementType: AchievementType.DEGREE,
     metadata: {
       major: 'Computer Science',
@@ -136,7 +122,7 @@ const performVerification = async (credentialId, ocId, transactionHash) => {
   return {
     isValid: true,
     status: VerificationStatus.VERIFIED,
-    credential: mockCredential,
+    credential: credentialData,
     verificationTimestamp: new Date(),
     blockchainProof: transactionHash ? {
       transactionHash,
@@ -146,21 +132,18 @@ const performVerification = async (credentialId, ocId, transactionHash) => {
   };
 };
 
-/**
- * Get credentials for an OCID
- * @param {string} ocId - OpenCampus ID
- * @returns {Promise<Array>} - Array of credentials
- */
-export const getCredentialsByOCID = async (ocId) => {
-  if (!ocId) {
+// Fetch all credentials associated with an OpenCampus identity
+// Time complexity: O(1) for mock implementation, O(n) for real API
+export const getCredentialsByOCID = async (ocidValue) => {
+  if (!ocidValue) {
     return [];
   }
 
   try {
-    // In production, this would query the OpenCampus ID API
-    // For now, return mock data
-    await new Promise(resolve => setTimeout(resolve, 300));
+    // Simulate API latency
+    await new Promise(delayCallback => setTimeout(delayCallback, 300));
     
+    // Return sample credentials (production would call OpenCampus API)
     return [
       {
         isValid: true,
@@ -185,87 +168,75 @@ export const getCredentialsByOCID = async (ocId) => {
         }
       }
     ];
-  } catch (error) {
-    console.error('Failed to get credentials:', error);
+  } catch (err) {
+    console.error('Failed to retrieve credentials:', err);
     return [];
   }
 };
 
-/**
- * Cache a verification result
- * @param {string} credentialId - Cache key
- * @param {Object} result - Verification result to cache
- */
-export const cacheResult = (credentialId, result) => {
-  if (!credentialId || !result) return;
+// Store verification result with expiration timestamp
+// Time complexity: O(1)
+export const cacheResult = (credentialId, verificationResult) => {
+  if (!credentialId || !verificationResult) return;
   
   verificationCache.set(credentialId, {
-    result,
+    result: verificationResult,
     cachedAt: Date.now(),
-    expiresAt: Date.now() + CACHE_TTL_MS
+    expiresAt: Date.now() + CACHE_VALIDITY_DURATION_MS
   });
 };
 
-/**
- * Get cached verification result if valid
- * @param {string} credentialId - Cache key
- * @returns {Object|null} - Cached result or null if expired/not found
- */
+// Retrieve cached verification if not expired
+// Time complexity: O(1)
 export const getCachedResult = (credentialId) => {
   if (!credentialId) return null;
   
-  const cached = verificationCache.get(credentialId);
+  const cacheEntry = verificationCache.get(credentialId);
   
-  if (!cached) return null;
+  if (!cacheEntry) return null;
   
-  // Check if cache has expired
-  if (Date.now() > cached.expiresAt) {
+  // Check expiration - remove if stale
+  if (Date.now() > cacheEntry.expiresAt) {
     verificationCache.delete(credentialId);
     return null;
   }
   
-  return cached.result;
+  return cacheEntry.result;
 };
 
-/**
- * Clear the verification cache
- */
+// Remove all cached entries
+// Time complexity: O(1)
 export const clearCache = () => {
   verificationCache.clear();
 };
 
-/**
- * Get cache statistics
- * @returns {Object} - Cache stats
- */
+// Retrieve cache performance metrics
+// Time complexity: O(n) where n is cache size
 export const getCacheStats = () => {
-  let validEntries = 0;
-  let expiredEntries = 0;
-  const now = Date.now();
+  let validCount = 0;
+  let expiredCount = 0;
+  const currentTime = Date.now();
   
   verificationCache.forEach((entry) => {
-    if (now > entry.expiresAt) {
-      expiredEntries++;
+    if (currentTime > entry.expiresAt) {
+      expiredCount++;
     } else {
-      validEntries++;
+      validCount++;
     }
   });
   
   return {
     totalEntries: verificationCache.size,
-    validEntries,
-    expiredEntries,
-    cacheTTLHours: CACHE_TTL_MS / (60 * 60 * 1000)
+    validEntries: validCount,
+    expiredEntries: expiredCount,
+    cacheTTLHours: CACHE_VALIDITY_DURATION_MS / (60 * 60 * 1000)
   };
 };
 
-/**
- * Parse verification status to user-friendly message
- * @param {string} status - Verification status
- * @returns {Object} - Status info with message and color
- */
-export const getStatusInfo = (status) => {
-  switch (status) {
+// Convert verification status code to user-friendly display information
+// Provides message, description, color hint, and icon suggestion
+export const getStatusInfo = (statusCode) => {
+  switch (statusCode) {
     case VerificationStatus.VERIFIED:
       return {
         message: 'Credential Verified',
@@ -297,21 +268,21 @@ export const getStatusInfo = (status) => {
     case VerificationStatus.NOT_FOUND:
       return {
         message: 'Not Found',
-        description: 'No credential found with this ID.',
+        description: 'No credential found with this identifier.',
         color: 'warning',
         icon: 'search'
       };
     case VerificationStatus.PENDING:
       return {
         message: 'Verification Pending',
-        description: 'Verification is in progress.',
+        description: 'Verification process is in progress.',
         color: 'info',
         icon: 'loader'
       };
     default:
       return {
         message: 'Verification Error',
-        description: 'An error occurred during verification.',
+        description: 'An unexpected error occurred during verification.',
         color: 'error',
         icon: 'alert-triangle'
       };
