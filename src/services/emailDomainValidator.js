@@ -1,78 +1,77 @@
-/**
- * Email Domain Validator Service
- * 
- * Validates email domains for role-based access control.
- * Supports university, government, and admin role restrictions.
- */
+// Email domain validation service for role-based access control
+// Verifies that user email domains match organizational requirements
+// Supports educational institutions, government agencies, and admin whitelisting
 
-// Load domain patterns from environment variables
+// Retrieve configured university domain suffixes from environment
+// Defaults to common educational TLDs if not specified
 const getUniversityDomains = () => {
-  const domains = import.meta.env.VITE_UNIVERSITY_DOMAINS || '.edu,.ac.uk,.edu.au,.ac.in';
-  return domains.split(',').map(d => d.trim().toLowerCase());
+  const configuredDomains = import.meta.env.VITE_UNIVERSITY_DOMAINS || '.edu,.ac.uk,.edu.au,.ac.in';
+  return configuredDomains.split(',').map(domain => domain.trim().toLowerCase());
 };
 
+// Retrieve configured government domain suffixes from environment
 const getGovernmentDomains = () => {
-  const domains = import.meta.env.VITE_GOVERNMENT_DOMAINS || '.gov,.gov.uk,.gov.au';
-  return domains.split(',').map(d => d.trim().toLowerCase());
+  const configuredDomains = import.meta.env.VITE_GOVERNMENT_DOMAINS || '.gov,.gov.uk,.gov.au';
+  return configuredDomains.split(',').map(domain => domain.trim().toLowerCase());
 };
 
+// Retrieve admin email whitelist - explicit addresses only
 const getAdminWhitelist = () => {
-  const whitelist = import.meta.env.VITE_ADMIN_WHITELIST || '';
-  return whitelist.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  const whitelistConfig = import.meta.env.VITE_ADMIN_WHITELIST || '';
+  return whitelistConfig.split(',')
+    .map(emailAddr => emailAddr.trim().toLowerCase())
+    .filter(Boolean);
 };
 
-/**
- * Check if email matches any domain pattern
- * @param {string} email - Email to check
- * @param {string[]} patterns - Domain patterns to match against
- * @returns {boolean}
- */
-const matchesDomainPattern = (email, patterns) => {
-  if (!email || !patterns.length) return false;
-  const emailLower = email.toLowerCase();
-  return patterns.some(pattern => emailLower.endsWith(pattern));
+// Check if email address ends with any specified domain pattern
+// Time complexity: O(n) where n is number of patterns
+const matchesDomainPattern = (emailAddress, domainPatterns) => {
+  if (!emailAddress || !domainPatterns.length) {
+    return false;
+  }
+  
+  const normalizedEmail = emailAddress.toLowerCase();
+  return domainPatterns.some(pattern => normalizedEmail.endsWith(pattern));
 };
 
-/**
- * Validate email for a specific role
- * @param {string} email - Email address to validate
- * @param {string} role - Role to validate against
- * @returns {{isValid: boolean, suggestedRole?: string, reason?: string}}
- */
-export const validateForRole = (email, role) => {
-  if (!email || typeof email !== 'string') {
+// Validate email domain against role requirements
+// Returns validation result with optional suggested role and reason
+export const validateForRole = (emailAddress, requestedRole) => {
+  if (!emailAddress || typeof emailAddress !== 'string') {
     return { isValid: false, reason: 'Email is required' };
   }
 
-  // Basic email format validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  // Verify basic email format using regex
+  const emailFormatPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailFormatPattern.test(emailAddress)) {
     return { isValid: false, reason: 'Invalid email format' };
   }
 
-  const emailLower = email.toLowerCase();
-  const roleLower = (role || '').toLowerCase();
+  const normalizedEmail = emailAddress.toLowerCase();
+  const normalizedRole = (requestedRole || '').toLowerCase();
 
-  switch (roleLower) {
+  switch (normalizedRole) {
     case 'university': {
-      const universityDomains = getUniversityDomains();
-      if (matchesDomainPattern(emailLower, universityDomains)) {
+      const educationalDomains = getUniversityDomains();
+      if (matchesDomainPattern(normalizedEmail, educationalDomains)) {
         return { isValid: true };
       }
+      const exampleDomains = educationalDomains.slice(0, 3).join(', ');
       return {
         isValid: false,
-        reason: `University role requires an educational email domain (${universityDomains.slice(0, 3).join(', ')}, etc.)`
+        reason: `University role requires an educational email domain (${exampleDomains}, etc.)`
       };
     }
 
     case 'government': {
       const govDomains = getGovernmentDomains();
-      if (matchesDomainPattern(emailLower, govDomains)) {
+      if (matchesDomainPattern(normalizedEmail, govDomains)) {
         return { isValid: true };
       }
+      const exampleGovDomains = govDomains.slice(0, 3).join(', ');
       return {
         isValid: false,
-        reason: `Government role requires a government email domain (${govDomains.slice(0, 3).join(', ')}, etc.)`
+        reason: `Government role requires a government email domain (${exampleGovDomains}, etc.)`
       };
     }
 
@@ -81,7 +80,7 @@ export const validateForRole = (email, role) => {
       if (adminWhitelist.length === 0) {
         return { isValid: false, reason: 'Admin registration is not available' };
       }
-      if (adminWhitelist.includes(emailLower)) {
+      if (adminWhitelist.includes(normalizedEmail)) {
         return { isValid: true };
       }
       return {
@@ -93,63 +92,55 @@ export const validateForRole = (email, role) => {
     case 'student':
     case 'employer':
     default:
-      // Students and employers can use any valid email
+      // Open registration - any valid email format accepted
       return { isValid: true };
   }
 };
 
-/**
- * Suggest a role based on email domain
- * @param {string} email - Email address
- * @returns {string} - Suggested role
- */
-export const suggestRole = (email) => {
-  if (!email || typeof email !== 'string') {
+// Suggest appropriate role based on email domain analysis
+// Useful for auto-selecting role during registration
+// Time complexity: O(m+n) where m=admin list size, n=domain patterns
+export const suggestRole = (emailAddress) => {
+  if (!emailAddress || typeof emailAddress !== 'string') {
     return 'student';
   }
 
-  const emailLower = email.toLowerCase();
+  const normalizedEmail = emailAddress.toLowerCase();
 
-  // Check admin whitelist first
+  // Priority 1: Check admin whitelist for exact match
   const adminWhitelist = getAdminWhitelist();
-  if (adminWhitelist.includes(emailLower)) {
+  if (adminWhitelist.includes(normalizedEmail)) {
     return 'admin';
   }
 
-  // Check government domains
-  const govDomains = getGovernmentDomains();
-  if (matchesDomainPattern(emailLower, govDomains)) {
+  // Priority 2: Government domain detection
+  const governmentDomains = getGovernmentDomains();
+  if (matchesDomainPattern(normalizedEmail, governmentDomains)) {
     return 'government';
   }
 
-  // Check university domains
-  const universityDomains = getUniversityDomains();
-  if (matchesDomainPattern(emailLower, universityDomains)) {
+  // Priority 3: Educational institution detection
+  const educationalDomains = getUniversityDomains();
+  if (matchesDomainPattern(normalizedEmail, educationalDomains)) {
     return 'university';
   }
 
-  // Default to student
+  // Default fallback for unrecognized domains
   return 'student';
 };
 
-/**
- * Check if email is in admin whitelist
- * @param {string} email - Email to check
- * @returns {boolean}
- */
-export const isAdminEmail = (email) => {
-  if (!email) return false;
+// Check if email address exists in admin whitelist
+// Returns boolean for simple authorization checks
+export const isAdminEmail = (emailAddress) => {
+  if (!emailAddress) return false;
   const adminWhitelist = getAdminWhitelist();
-  return adminWhitelist.includes(email.toLowerCase());
+  return adminWhitelist.includes(emailAddress.toLowerCase());
 };
 
-/**
- * Get domain patterns for a role
- * @param {string} role - Role to get patterns for
- * @returns {string[]}
- */
-export const getDomainPatterns = (role) => {
-  switch ((role || '').toLowerCase()) {
+// Retrieve domain patterns configured for a specific role
+// Useful for displaying allowed domains in UI
+export const getDomainPatterns = (roleName) => {
+  switch ((roleName || '').toLowerCase()) {
     case 'university':
       return getUniversityDomains();
     case 'government':
@@ -161,6 +152,7 @@ export const getDomainPatterns = (role) => {
   }
 };
 
+// Export all validation functions as default module
 export default {
   validateForRole,
   suggestRole,
