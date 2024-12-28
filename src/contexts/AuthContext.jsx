@@ -19,17 +19,12 @@ import {
 } from '../services/firebaseService';
 import { validateForRole, suggestRole } from '../services/emailDomainValidator';
 
-// Authentication context - manages user session and profile state
-// Provides auth methods to entire component tree via React context
 const AuthContext = createContext(null);
 
-// Custom hook for consuming auth context with safe defaults
-// Returns stub methods when context unavailable (during initial render)
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  
-  // Return fallback object when context not yet available
+  // Return empty object if context is null (during initial render)
   if (!context) {
     return {
       user: null,
@@ -62,8 +57,6 @@ export const useAuth = () => {
   return context;
 };
 
-// Main auth provider component managing Firebase authentication state
-// Handles user registration, login, and profile synchronization
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -73,22 +66,21 @@ export const AuthProvider = ({ children }) => {
   const [isStudentVerified, setIsStudentVerified] = useState(false);
   const [verification, setVerification] = useState(null);
 
-  // Subscribe to Firebase auth state changes on mount
-  // Automatically fetches/creates user profile when auth state changes
+  // Listen to auth state changes
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
     
-    const unsubscribeAuth = onAuthChange(async (firebaseUser) => {
-      if (!isMounted) return;
+    const unsubscribe = onAuthChange(async (firebaseUser) => {
+      if (!mounted) return;
       
       setUser(firebaseUser);
       
       if (firebaseUser) {
         try {
-          // Attempt to retrieve existing user profile
+          // Try to get existing profile
           let userProfile = await getUserProfile(firebaseUser.uid);
           
-          // Initialize profile for new users
+          // If no profile exists, create one
           if (!userProfile) {
             await createUserProfile(firebaseUser.uid, {
               email: firebaseUser.email,
@@ -98,24 +90,24 @@ export const AuthProvider = ({ children }) => {
             userProfile = await getUserProfile(firebaseUser.uid);
           }
           
-          if (isMounted) {
+          if (mounted) {
             setProfile(userProfile);
             
-            // Restore verification status if not expired
-            const verificationData = userProfile?.sheerIdVerification;
-            if (verificationData && !isVerificationExpired(verificationData)) {
+            // Load verification status
+            const verificationStatus = userProfile?.sheerIdVerification;
+            if (verificationStatus && !isVerificationExpired(verificationStatus)) {
               setIsStudentVerified(userProfile.isStudentVerified || false);
-              setVerification(verificationData);
+              setVerification(verificationStatus);
             } else {
               setIsStudentVerified(false);
               setVerification(null);
             }
           }
-        } catch (profileError) {
-          console.error('Error loading profile:', profileError);
-          if (isMounted) {
-            setError(profileError.message);
-            // Set minimal profile from Firebase user data
+        } catch (err) {
+          console.error('Error loading profile:', err);
+          if (mounted) {
+            setError(err.message);
+            // Still set a basic profile from Firebase user
             setProfile({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
@@ -127,159 +119,145 @@ export const AuthProvider = ({ children }) => {
           }
         }
       } else {
-        if (isMounted) {
+        if (mounted) {
           setProfile(null);
           setIsStudentVerified(false);
           setVerification(null);
         }
       }
       
-      if (isMounted) {
+      if (mounted) {
         setLoading(false);
         setInitialized(true);
       }
     });
 
     return () => {
-      isMounted = false;
-      unsubscribeAuth();
+      mounted = false;
+      unsubscribe();
     };
   }, []);
 
-  // User registration with email domain validation for role assignment
-  // Creates Firebase auth account and corresponding Firestore profile
   const signUp = async (email, password, displayName, role = 'student') => {
     setLoading(true);
     setError(null);
     try {
-      // Verify email domain is permitted for requested role
-      const domainValidation = validateForRole(email, role);
-      if (!domainValidation.isValid) {
-        throw new Error(domainValidation.reason || 'Email domain not allowed for this role');
+      // Validate email domain for the selected role
+      const validation = validateForRole(email, role);
+      if (!validation.isValid) {
+        throw new Error(validation.reason || 'Email domain not allowed for this role');
       }
       
       const userCredential = await firebaseSignUp(email, password, displayName);
       
-      // Initialize user profile document in Firestore
+      // Create user profile in Firestore
       await createUserProfile(userCredential.user.uid, {
         email,
         displayName,
         role
       });
       
-      const newUserProfile = await getUserProfile(userCredential.user.uid);
-      setProfile(newUserProfile);
+      const userProfile = await getUserProfile(userCredential.user.uid);
+      setProfile(userProfile);
       return userCredential;
-    } catch (signUpError) {
-      setError(signUpError.message);
-      throw signUpError;
+    } catch (err) {
+      setError(err.message);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Standard email/password authentication
   const signIn = async (email, password) => {
     setLoading(true);
     setError(null);
     try {
-      const authResult = await firebaseSignIn(email, password);
-      return authResult;
-    } catch (signInError) {
-      setError(signInError.message);
-      throw signInError;
+      const result = await firebaseSignIn(email, password);
+      return result;
+    } catch (err) {
+      setError(err.message);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // OAuth authentication via Google popup
-  // Creates profile for new users automatically
   const signInWithGoogle = async () => {
     setLoading(true);
     setError(null);
     try {
-      const authResult = await firebaseSignInWithGoogle();
+      const result = await firebaseSignInWithGoogle();
       
-      // Ensure profile exists for OAuth users
-      let userProfile = await getUserProfile(authResult.user.uid);
+      // Check if profile exists, create if not
+      let userProfile = await getUserProfile(result.user.uid);
       if (!userProfile) {
-        await createUserProfile(authResult.user.uid, {
-          email: authResult.user.email,
-          displayName: authResult.user.displayName || '',
+        await createUserProfile(result.user.uid, {
+          email: result.user.email,
+          displayName: result.user.displayName || '',
           role: 'student'
         });
-        userProfile = await getUserProfile(authResult.user.uid);
+        userProfile = await getUserProfile(result.user.uid);
       }
       setProfile(userProfile);
-      return authResult;
-    } catch (googleError) {
-      console.error('Google sign-in error:', googleError);
-      
-      // Map Firebase error codes to user-friendly messages
-      let friendlyMessage = googleError.message;
-      if (googleError.code === 'auth/popup-closed-by-user') {
-        friendlyMessage = 'Sign-in popup was closed. Please try again.';
-      } else if (googleError.code === 'auth/popup-blocked') {
-        friendlyMessage = 'Popup was blocked. Please allow popups for this site.';
-      } else if (googleError.code === 'auth/unauthorized-domain') {
-        friendlyMessage = 'This domain is not authorized for Google sign-in. Please use email/password.';
+      return result;
+    } catch (err) {
+      console.error('Google sign-in error:', err);
+      // Handle specific Firebase auth errors
+      let errorMessage = err.message;
+      if (err.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Sign-in popup was closed. Please try again.';
+      } else if (err.code === 'auth/popup-blocked') {
+        errorMessage = 'Popup was blocked. Please allow popups for this site.';
+      } else if (err.code === 'auth/unauthorized-domain') {
+        errorMessage = 'This domain is not authorized for Google sign-in. Please use email/password.';
       }
-      setError(friendlyMessage);
-      throw new Error(friendlyMessage);
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // End user session and clear local state
   const signOut = async () => {
     setLoading(true);
     try {
       await firebaseSignOut();
       setUser(null);
       setProfile(null);
-    } catch (signOutError) {
-      setError(signOutError.message);
-      throw signOutError;
+    } catch (err) {
+      setError(err.message);
+      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Update user profile fields in Firestore
-  const updateProfile = async (updateData) => {
-    if (!user) {
-      throw new Error('No user logged in');
-    }
+  const updateProfile = async (data) => {
+    if (!user) throw new Error('No user logged in');
     
     try {
-      await updateUserProfile(user.uid, updateData);
-      const refreshedProfile = await getUserProfile(user.uid);
-      setProfile(refreshedProfile);
-    } catch (updateError) {
-      setError(updateError.message);
-      throw updateError;
+      await updateUserProfile(user.uid, data);
+      const updatedProfile = await getUserProfile(user.uid);
+      setProfile(updatedProfile);
+    } catch (err) {
+      setError(err.message);
+      throw err;
     }
   };
 
-  // Associate blockchain wallet address with user profile
   const linkWallet = async (walletAddress) => {
-    if (!user) {
-      throw new Error('No user logged in');
-    }
+    if (!user) throw new Error('No user logged in');
     
     try {
       await updateUserProfile(user.uid, { walletAddress });
-      setProfile(prevProfile => ({ ...prevProfile, walletAddress }));
-    } catch (linkError) {
-      setError(linkError.message);
-      throw linkError;
+      setProfile(prev => ({ ...prev, walletAddress }));
+    } catch (err) {
+      setError(err.message);
+      throw err;
     }
   };
 
-  // Generate decentralized identifier for user
-  // Returns wallet address if available, otherwise Firebase-based DID
+  // Get DID - either wallet address or custodial ID
   const getDID = () => {
     if (profile?.walletAddress) {
       return profile.walletAddress;
@@ -290,33 +268,28 @@ export const AuthProvider = ({ children }) => {
     return null;
   };
 
-  // Persist SheerID verification result to user profile
+  // Save SheerID verification result
   const saveStudentVerification = async (verificationData) => {
-    if (!user) {
-      throw new Error('No user logged in');
-    }
+    if (!user) throw new Error('No user logged in');
     
     try {
       await saveVerification(user.uid, verificationData);
-      const isApproved = verificationData.status === 'approved';
-      setIsStudentVerified(isApproved);
+      setIsStudentVerified(verificationData.status === 'approved');
       setVerification(verificationData);
-      setProfile(prevProfile => ({
-        ...prevProfile,
-        isStudentVerified: isApproved,
+      setProfile(prev => ({
+        ...prev,
+        isStudentVerified: verificationData.status === 'approved',
         sheerIdVerification: verificationData
       }));
-    } catch (saveError) {
-      setError(saveError.message);
-      throw saveError;
+    } catch (err) {
+      setError(err.message);
+      throw err;
     }
   };
 
-  // Query current SheerID verification state
+  // Check current verification status
   const checkVerificationStatus = async () => {
-    if (!user) {
-      return { isVerified: false, verification: null };
-    }
+    if (!user) return { isVerified: false, verification: null };
     
     try {
       const status = await getVerificationStatus(user.uid);
@@ -326,14 +299,13 @@ export const AuthProvider = ({ children }) => {
         return status;
       }
       return { isVerified: false, verification: null };
-    } catch (checkError) {
-      console.error('Error checking verification:', checkError);
+    } catch (err) {
+      console.error('Error checking verification:', err);
       return { isVerified: false, verification: null };
     }
   };
 
-  // Context value exposed to consumers
-  const contextValue = {
+  const value = {
     user,
     profile,
     loading,
@@ -355,7 +327,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={contextValue}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

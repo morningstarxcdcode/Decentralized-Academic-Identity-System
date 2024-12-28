@@ -1,13 +1,10 @@
-/**
- * OpenCampus ID Service
- * 
- * Handles OCID authentication and integration using @opencampus/ocid-connect-js SDK.
- * Supports both sandbox (development) and production modes.
- */
+// OpenCampus Identity integration using official SDK
+// Provides decentralized identity authentication for academic ecosystem
+// Supports both development sandbox and live production environments
 
 import { OCConnect } from '@opencampus/ocid-connect-js';
 
-// Configuration from environment variables
+// Configuration loader from environment variables
 const getOCIDConfig = () => ({
   clientId: import.meta.env.VITE_OCID_CLIENT_ID || '',
   redirectUri: import.meta.env.VITE_OCID_REDIRECT_URI || `${window.location.origin}/ocid/callback`,
@@ -15,9 +12,11 @@ const getOCIDConfig = () => ({
   referralCode: import.meta.env.VITE_OCID_REFERRAL_CODE || 'PARTNER6'
 });
 
-// Singleton instance
+// Module-level singleton to maintain single SDK instance
 let ocConnectInstance = null;
-let authState = {
+
+// Authentication state tracker
+let authenticationState = {
   isAuthenticated: false,
   isInitialized: false,
   accessToken: null,
@@ -27,39 +26,35 @@ let authState = {
   error: null
 };
 
-/**
- * Initialize the OCID SDK
- * @returns {Promise<OCConnect>}
- */
+// Initialize OpenCampus SDK singleton instance
+// Time complexity: O(1)
 export const initializeOCID = async () => {
   if (ocConnectInstance) {
     return ocConnectInstance;
   }
 
-  const config = getOCIDConfig();
+  const configuration = getOCIDConfig();
   
   try {
     ocConnectInstance = new OCConnect({
       opts: {
-        redirectUri: config.redirectUri,
-        referralCode: config.referralCode
+        redirectUri: configuration.redirectUri,
+        referralCode: configuration.referralCode
       },
-      sandboxMode: config.sandboxMode
+      sandboxMode: configuration.sandboxMode
     });
 
-    authState.isInitialized = true;
+    authenticationState.isInitialized = true;
     return ocConnectInstance;
-  } catch (error) {
-    console.error('Failed to initialize OCID:', error);
-    authState.error = error.message;
-    throw error;
+  } catch (err) {
+    console.error('OCID initialization failed:', err);
+    authenticationState.error = err.message;
+    throw err;
   }
 };
 
-/**
- * Get the OCConnect instance (initializes if needed)
- * @returns {Promise<OCConnect>}
- */
+// Retrieve existing SDK instance or create new one
+// Time complexity: O(1)
 export const getOCConnect = async () => {
   if (!ocConnectInstance) {
     return initializeOCID();
@@ -67,36 +62,30 @@ export const getOCConnect = async () => {
   return ocConnectInstance;
 };
 
-/**
- * Trigger OCID login flow
- * @param {string} state - Optional state parameter for CSRF protection
- */
-export const signInWithOCID = async (state = '') => {
+// Initiate OAuth redirect flow to OCID login
+// Time complexity: O(1) - redirect is immediate
+export const signInWithOCID = async (csrfState = '') => {
   const ocConnect = await getOCConnect();
   
   try {
-    // The SDK handles the redirect to OCID login page
-    await ocConnect.signInWithRedirect({ state });
-  } catch (error) {
-    console.error('OCID sign-in error:', error);
-    authState.error = error.message;
-    throw error;
+    await ocConnect.signInWithRedirect({ state: csrfState });
+  } catch (err) {
+    console.error('OCID sign-in redirect failed:', err);
+    authenticationState.error = err.message;
+    throw err;
   }
 };
 
-/**
- * Handle the redirect callback from OCID
- * @returns {Promise<Object>} - Auth state with tokens and user info
- */
+// Process OAuth callback and extract authentication tokens
+// Time complexity: O(1)
 export const handleOCIDCallback = async () => {
   const ocConnect = await getOCConnect();
   
   try {
-    // Parse the callback URL and extract tokens
     const authInfo = await ocConnect.handleLoginRedirect();
     
     if (authInfo) {
-      authState = {
+      authenticationState = {
         isAuthenticated: true,
         isInitialized: true,
         accessToken: authInfo.accessToken || null,
@@ -107,43 +96,37 @@ export const handleOCIDCallback = async () => {
       };
     }
     
-    return authState;
-  } catch (error) {
-    console.error('OCID callback error:', error);
-    authState.error = error.message;
-    authState.isAuthenticated = false;
-    throw error;
+    return authenticationState;
+  } catch (err) {
+    console.error('OCID callback processing failed:', err);
+    authenticationState.error = err.message;
+    authenticationState.isAuthenticated = false;
+    throw err;
   }
 };
 
-/**
- * Get current OCID auth state
- * @returns {Object} - Current auth state
- */
+// Get current authentication state snapshot
+// Time complexity: O(1) - returns copy to prevent mutation
 export const getOCIDAuthState = () => {
-  return { ...authState };
+  return { ...authenticationState };
 };
 
-/**
- * Check if user is authenticated with OCID
- * @returns {boolean}
- */
+// Check if user has valid OCID session
+// Time complexity: O(1)
 export const isOCIDAuthenticated = () => {
-  return authState.isAuthenticated && !!authState.ocId;
+  return authenticationState.isAuthenticated && !!authenticationState.ocId;
 };
 
-/**
- * Logout from OCID
- * @param {string} returnUrl - URL to redirect after logout
- */
+// Terminate OCID session and clear local state
+// Time complexity: O(1)
 export const logoutOCID = async (returnUrl = window.location.origin) => {
   const ocConnect = await getOCConnect();
   
   try {
     await ocConnect.logout(returnUrl);
     
-    // Reset auth state
-    authState = {
+    // Reset local authentication state
+    authenticationState = {
       isAuthenticated: false,
       isInitialized: true,
       accessToken: null,
@@ -152,60 +135,56 @@ export const logoutOCID = async (returnUrl = window.location.origin) => {
       ethAddress: null,
       error: null
     };
-  } catch (error) {
-    console.error('OCID logout error:', error);
-    throw error;
+  } catch (err) {
+    console.error('OCID logout failed:', err);
+    throw err;
   }
 };
 
-/**
- * Get user info from OCID token
- * @returns {Object|null} - User info or null if not authenticated
- */
+// Fetch user profile information from OCID token
+// Time complexity: O(1)
 export const getOCIDUserInfo = async () => {
   const ocConnect = await getOCConnect();
   
   try {
     const userInfo = await ocConnect.getUserInfo();
     return userInfo;
-  } catch (error) {
-    console.error('Failed to get OCID user info:', error);
+  } catch (err) {
+    console.error('Failed to retrieve OCID user info:', err);
     return null;
   }
 };
 
-/**
- * Validate OCID configuration
- * @returns {{isValid: boolean, errors: string[]}}
- */
+// Validate environment configuration for OCID
+// Time complexity: O(1)
 export const validateOCIDConfig = () => {
-  const config = getOCIDConfig();
-  const errors = [];
+  const configuration = getOCIDConfig();
+  const validationErrors = [];
 
-  if (!config.sandboxMode && !config.clientId) {
-    errors.push('OCID Client ID is required for production mode');
+  if (!configuration.sandboxMode && !configuration.clientId) {
+    validationErrors.push('OCID Client ID required for production mode');
   }
 
-  if (!config.redirectUri) {
-    errors.push('OCID Redirect URI is required');
+  if (!configuration.redirectUri) {
+    validationErrors.push('OCID Redirect URI is required');
   }
 
   return {
-    isValid: errors.length === 0,
-    errors,
+    isValid: validationErrors.length === 0,
+    errors: validationErrors,
     config: {
-      ...config,
-      clientId: config.clientId ? '***' : 'not set' // Mask client ID
+      ...configuration,
+      clientId: configuration.clientId ? '***' : 'not set'
     }
   };
 };
 
-/**
- * Reset OCID state (useful for testing or re-initialization)
- */
+// Clear SDK instance and authentication state
+// Useful for re-initialization or testing
+// Time complexity: O(1)
 export const resetOCIDState = () => {
   ocConnectInstance = null;
-  authState = {
+  authenticationState = {
     isAuthenticated: false,
     isInitialized: false,
     accessToken: null,

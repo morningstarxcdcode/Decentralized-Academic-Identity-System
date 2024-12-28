@@ -1,33 +1,27 @@
-/**
- * SheerID Verification Service
- * 
- * Integrates with SheerID to verify student/faculty status
- * Documentation: https://developer.sheerid.com/
- */
+// Student verification integration using SheerID identity platform
+// Provides academic status validation for students, faculty, and staff
+// Includes demo mode for testing without live SheerID credentials
+// Reference: https://developer.sheerid.com/
 
-// SheerID Program ID - Replace with your actual program ID from SheerID dashboard
+// Environment variable based program configuration
 const SHEERID_PROGRAM_ID = import.meta.env.VITE_SHEERID_PROGRAM_ID || 'YOUR_PROGRAM_ID';
+const SHEERID_API_BASE = 'https://services.sheerid.com/rest/v2';
 
-// SheerID API base URL
-const SHEERID_API_URL = 'https://services.sheerid.com/rest/v2';
-
-/**
- * Initialize SheerID verification
- * Opens the SheerID verification modal/iframe
- */
-export const initSheerIDVerification = (options = {}) => {
+// Entry point for SheerID verification workflow
+// Returns promise that resolves with verification response
+// Time complexity: O(1) for initialization, user-dependent for completion
+export const initSheerIDVerification = (verificationOptions = {}) => {
   return new Promise((resolve, reject) => {
     const {
       programId = SHEERID_PROGRAM_ID,
-      segment = 'student', // 'student', 'teacher', 'military', etc.
+      segment = 'student',
       onSuccess,
       onError,
       onClose
-    } = options;
+    } = verificationOptions;
 
-    // Check if SheerID SDK is loaded
+    // Load SheerID SDK if not already present in DOM
     if (typeof window.sheerId === 'undefined') {
-      // Load SheerID SDK dynamically
       loadSheerIDSDK()
         .then(() => openVerification(programId, segment, resolve, reject, onSuccess, onError, onClose))
         .catch(reject);
@@ -37,9 +31,8 @@ export const initSheerIDVerification = (options = {}) => {
   });
 };
 
-/**
- * Load SheerID JavaScript SDK
- */
+// Dynamic SDK loader - injects SheerID script into document head
+// Time complexity: O(1)
 const loadSheerIDSDK = () => {
   return new Promise((resolve, reject) => {
     if (document.getElementById('sheerid-sdk')) {
@@ -47,43 +40,41 @@ const loadSheerIDSDK = () => {
       return;
     }
 
-    const script = document.createElement('script');
-    script.id = 'sheerid-sdk';
-    script.src = 'https://cdn.sheerid.com/js/sheerid.js';
-    script.async = true;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error('Failed to load SheerID SDK'));
-    document.head.appendChild(script);
+    const sdkScript = document.createElement('script');
+    sdkScript.id = 'sheerid-sdk';
+    sdkScript.src = 'https://cdn.sheerid.com/js/sheerid.js';
+    sdkScript.async = true;
+    sdkScript.onload = resolve;
+    sdkScript.onerror = () => reject(new Error('SheerID SDK failed to load'));
+    document.head.appendChild(sdkScript);
   });
 };
 
-/**
- * Open SheerID verification form
- */
+// Launch verification modal with configured options
+// Handles both real SDK and demo mode fallback
 const openVerification = (programId, segment, resolve, reject, onSuccess, onError, onClose) => {
   try {
-    // For demo/testing without real SheerID account
+    // Check for demo mode when no real program ID configured
     if (programId === 'YOUR_PROGRAM_ID' || programId === 'demo') {
-      console.warn('SheerID: Running in demo mode. Set VITE_SHEERID_PROGRAM_ID for production.');
-      // Simulate verification for demo
+      console.warn('SheerID running in demo mode - configure VITE_SHEERID_PROGRAM_ID for production');
       simulateDemoVerification(resolve, reject, onSuccess, onError);
       return;
     }
 
-    // Real SheerID integration
+    // Initialize real SheerID verification flow
     window.sheerId.setOptions({
       programId: programId,
       segment: segment,
       container: '#sheerid-container',
-      onSuccess: (response) => {
-        console.log('SheerID verification successful:', response);
-        if (onSuccess) onSuccess(response);
-        resolve(response);
+      onSuccess: (verificationResponse) => {
+        console.log('Verification completed successfully:', verificationResponse);
+        if (onSuccess) onSuccess(verificationResponse);
+        resolve(verificationResponse);
       },
-      onError: (error) => {
-        console.error('SheerID verification error:', error);
-        if (onError) onError(error);
-        reject(error);
+      onError: (verificationError) => {
+        console.error('Verification failed:', verificationError);
+        if (onError) onError(verificationError);
+        reject(verificationError);
       },
       onClose: () => {
         if (onClose) onClose();
@@ -91,19 +82,17 @@ const openVerification = (programId, segment, resolve, reject, onSuccess, onErro
     });
 
     window.sheerId.open();
-  } catch (error) {
-    reject(error);
+  } catch (err) {
+    reject(err);
   }
 };
 
-/**
- * Demo verification simulation (for testing without SheerID account)
- */
+// Demo verification UI for testing without live SheerID credentials
+// Creates styled modal with form inputs for simulated verification
 const simulateDemoVerification = (resolve, reject, onSuccess, onError) => {
-  // Create a demo modal
-  const modal = document.createElement('div');
-  modal.id = 'sheerid-demo-modal';
-  modal.innerHTML = `
+  const demoModalElement = document.createElement('div');
+  demoModalElement.id = 'sheerid-demo-modal';
+  demoModalElement.innerHTML = `
     <div style="
       position: fixed;
       top: 0;
@@ -213,58 +202,60 @@ const simulateDemoVerification = (resolve, reject, onSuccess, onError) => {
     </div>
   `;
   
-  document.body.appendChild(modal);
+  document.body.appendChild(demoModalElement);
   
-  const closeModal = () => {
-    modal.remove();
+  const dismissModal = () => {
+    demoModalElement.remove();
   };
   
   document.getElementById('demo-cancel').onclick = () => {
-    closeModal();
-    reject(new Error('Verification cancelled'));
+    dismissModal();
+    reject(new Error('Verification cancelled by user'));
   };
   
   document.getElementById('demo-verify').onclick = () => {
-    const email = document.getElementById('demo-email').value;
-    const institution = document.getElementById('demo-institution').value;
+    const userEmail = document.getElementById('demo-email').value;
+    const institutionName = document.getElementById('demo-institution').value;
     
-    if (!email || !institution) {
-      alert('Please fill in all fields');
+    if (!userEmail || !institutionName) {
+      alert('Please complete all required fields');
       return;
     }
     
-    // Simulate verification delay
-    const btn = document.getElementById('demo-verify');
-    btn.textContent = 'Verifying...';
-    btn.disabled = true;
+    // Show loading state
+    const verifyBtn = document.getElementById('demo-verify');
+    verifyBtn.textContent = 'Verifying...';
+    verifyBtn.disabled = true;
     
+    // Simulate network latency for realism
     setTimeout(() => {
-      closeModal();
+      dismissModal();
       
-      const response = {
+      const verificationResult = {
         verificationId: 'demo_' + Date.now(),
         status: 'approved',
         segment: 'student',
-        email: email,
+        email: userEmail,
         organization: {
-          name: institution,
+          name: institutionName,
           id: 'demo_org_' + Date.now()
         },
         verifiedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
         demoMode: true
       };
       
-      if (onSuccess) onSuccess(response);
-      resolve(response);
+      if (onSuccess) onSuccess(verificationResult);
+      resolve(verificationResult);
     }, 1500);
   };
 };
 
 /**
- * Check verification status by verification ID
- */
+ / Query verification status from SheerID API
+// Time complexity: O(1) API call
 export const checkVerificationStatus = async (verificationId) => {
+  // Handle demo mode identifiers
   if (verificationId.startsWith('demo_')) {
     return {
       status: 'approved',
@@ -273,34 +264,35 @@ export const checkVerificationStatus = async (verificationId) => {
   }
 
   try {
-    const response = await fetch(`${SHEERID_API_URL}/verification/${verificationId}`, {
+    const apiResponse = await fetch(`${SHEERID_API_BASE}/verification/${verificationId}`, {
       headers: {
         'Authorization': `Bearer ${import.meta.env.VITE_SHEERID_API_KEY || ''}`
       }
     });
     
-    if (!response.ok) {
-      throw new Error('Failed to check verification status');
+    if (!apiResponse.ok) {
+      throw new Error('Verification status lookup failed');
     }
     
-    return await response.json();
-  } catch (error) {
-    console.error('Error checking verification status:', error);
-    throw error;
+    return await apiResponse.json();
+  } catch (err) {
+    console.error('Error retrieving verification status:', err);
+    throw err;
   }
 };
 
-/**
- * Verify if a verification is still valid (not expired)
- */
-export const isVerificationValid = (verification) => {
-  if (!verification) return false;
-  if (verification.status !== 'approved') return false;
+// Validate verification has not expired and is approved
+// Time complexity: O(1)
+export const isVerificationValid = (verificationData) => {
+  if (!verificationData) return false;
+  if (verificationData.status !== 'approved') return false;
   
-  if (verification.expiresAt) {
-    const expiryDate = new Date(verification.expiresAt);
-    if (expiryDate < new Date()) {
-      return false;
+  // Check expiration date if present
+  if (verificationData.expiresAt) {
+    const expirationTimestamp = new Date(verificationData.expiresAt);
+    const currentTimestamp = new Date();
+    
+    if (expirationTimestamp < currentTimestamp
     }
   }
   

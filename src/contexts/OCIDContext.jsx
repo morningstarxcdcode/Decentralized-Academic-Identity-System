@@ -1,6 +1,8 @@
-// OpenCampus ID integration context
-// Manages OCID authentication state and SDK interactions
-// Provides OAuth flow handling for decentralized identity verification
+/**
+ * OpenCampus ID Context
+ * 
+ * Provides OCID authentication state and methods throughout the app.
+ */
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
@@ -16,12 +18,9 @@ import {
 
 const OCIDContext = createContext(null);
 
-// Custom hook for OCID context consumption with safe defaults
 // eslint-disable-next-line react-refresh/only-export-components
 export const useOCID = () => {
   const context = useContext(OCIDContext);
-  
-  // Return fallback when context not available
   if (!context) {
     return {
       isOCIDAuthenticated: false,
@@ -40,7 +39,6 @@ export const useOCID = () => {
   return context;
 };
 
-// OCID provider component - initializes SDK and manages auth state
 export const OCIDProvider = ({ children }) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -50,56 +48,55 @@ export const OCIDProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
 
-  // Initialize OCID SDK on component mount
-  // Restores existing auth state if available
+  // Initialize OCID SDK on mount
   useEffect(() => {
-    const initializeSDK = async () => {
+    const init = async () => {
       try {
-        const configValidation = validateOCIDConfig();
-        if (!configValidation.isValid) {
-          console.warn('OCID configuration issues:', configValidation.errors);
+        const validation = validateOCIDConfig();
+        if (!validation.isValid) {
+          console.warn('OCID config issues:', validation.errors);
         }
         
         await initializeOCID();
         
-        // Check for persisted authentication
-        const existingAuthState = getOCIDAuthState();
-        if (existingAuthState.isAuthenticated) {
-          setOcId(existingAuthState.ocId);
-          setEthAddress(existingAuthState.ethAddress);
+        // Check if we have existing auth state
+        const authState = getOCIDAuthState();
+        if (authState.isAuthenticated) {
+          setOcId(authState.ocId);
+          setEthAddress(authState.ethAddress);
         }
         
         setIsInitialized(true);
-      } catch (initError) {
-        console.error('Failed to initialize OCID:', initError);
-        setError(initError.message);
-        setIsInitialized(true); // Mark initialized to prevent blocking
+      } catch (err) {
+        console.error('Failed to initialize OCID:', err);
+        setError(err.message);
+        setIsInitialized(true); // Still mark as initialized to prevent blocking
       }
     };
 
-    initializeSDK();
+    init();
   }, []);
 
-  // Initiate OCID OAuth flow - redirects to OpenCampus login
+  // Connect to OCID (triggers redirect)
   const connectOCID = useCallback(async () => {
     setIsConnecting(true);
     setError(null);
     
     try {
-      // Generate CSRF protection token
-      const stateToken = crypto.randomUUID();
-      sessionStorage.setItem('ocid_state', stateToken);
+      // Generate a random state for CSRF protection
+      const state = crypto.randomUUID();
+      sessionStorage.setItem('ocid_state', state);
       
-      await signInWithOCID(stateToken);
-      // Redirect occurs - subsequent code won't execute
-    } catch (connectError) {
-      console.error('OCID connect error:', connectError);
-      setError(connectError.message);
+      await signInWithOCID(state);
+      // Note: This will redirect, so the following won't execute
+    } catch (err) {
+      console.error('OCID connect error:', err);
+      setError(err.message);
       setIsConnecting(false);
     }
   }, []);
 
-  // Process OAuth callback after redirect from OpenCampus
+  // Handle OCID callback (called on redirect back)
   const handleCallback = useCallback(async () => {
     setIsConnecting(true);
     setError(null);
@@ -111,22 +108,22 @@ export const OCIDProvider = ({ children }) => {
         setOcId(authState.ocId);
         setEthAddress(authState.ethAddress);
         
-        // Fetch extended user profile
-        const userProfile = await getOCIDUserInfo();
-        setUserInfo(userProfile);
+        // Fetch additional user info
+        const info = await getOCIDUserInfo();
+        setUserInfo(info);
       }
       
       setIsConnecting(false);
       return authState;
-    } catch (callbackError) {
-      console.error('OCID callback error:', callbackError);
-      setError(callbackError.message);
+    } catch (err) {
+      console.error('OCID callback error:', err);
+      setError(err.message);
       setIsConnecting(false);
-      throw callbackError;
+      throw err;
     }
   }, []);
 
-  // End OCID session and clear local state
+  // Disconnect from OCID
   const disconnectOCID = useCallback(async () => {
     setIsConnecting(true);
     setError(null);
@@ -137,30 +134,30 @@ export const OCIDProvider = ({ children }) => {
       setEthAddress(null);
       setUserInfo(null);
       resetOCIDState();
-    } catch (disconnectError) {
-      console.error('OCID disconnect error:', disconnectError);
-      setError(disconnectError.message);
+    } catch (err) {
+      console.error('OCID disconnect error:', err);
+      setError(err.message);
     } finally {
       setIsConnecting(false);
     }
   }, []);
 
-  // Fetch current user profile from OCID service
+  // Get user info
   const getUserInfo = useCallback(async () => {
     if (!ocId) return null;
     
     try {
-      const profileInfo = await getOCIDUserInfo();
-      setUserInfo(profileInfo);
-      return profileInfo;
-    } catch (fetchError) {
-      console.error('Failed to get user info:', fetchError);
+      const info = await getOCIDUserInfo();
+      setUserInfo(info);
+      return info;
+    } catch (err) {
+      console.error('Failed to get user info:', err);
       return null;
     }
   }, [ocId]);
 
-  // Context value exposed to consumers
-  const contextValue = {
+  const value = {
+    // State
     isOCIDAuthenticated: !!ocId,
     isInitialized,
     isConnecting,
@@ -169,6 +166,8 @@ export const OCIDProvider = ({ children }) => {
     ethAddress,
     userInfo,
     error,
+    
+    // Methods
     connectOCID,
     disconnectOCID,
     handleCallback,
@@ -176,7 +175,7 @@ export const OCIDProvider = ({ children }) => {
   };
 
   return (
-    <OCIDContext.Provider value={contextValue}>
+    <OCIDContext.Provider value={value}>
       {children}
     </OCIDContext.Provider>
   );
