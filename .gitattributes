@@ -1,0 +1,8 @@
+* text=auto
+* eol=lf
+
+# Treat Solidity files as Solidity for linguist
+*.sol linguist-language=Solidity
+
+# Ensure docs are marked as text
+docs/* text=auto

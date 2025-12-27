@@ -1,4 +1,7 @@
-#  Decentralized Academic Identity System
+# Decentralized Academic Identity System
+
+[![CI](https://github.com/morningstarxcdcode/sqq/actions/workflows/ci.yml/badge.svg)](https://github.com/morningstarxcdcode/sqq/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > **Designed & Developed by morningstarxcdcode**
 
