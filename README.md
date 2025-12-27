@@ -1,4 +1,4 @@
-# 🎓 Decentralized Academic Identity System
+#  Decentralized Academic Identity System
 
 > **Designed & Developed by morningstarxcdcode**
 
@@ -16,11 +16,11 @@ A professional, blockchain-based platform where:
 
 ```mermaid
 graph TD
-    A[🎓 University] -->|Issues Credential| B(Blockchain Registry)
+    A[ University] -->|Issues Credential| B(Blockchain Registry)
     A -->|Uploads Metadata| C(Secure Storage IPFS)
-    B -.->|Updates| D[👤 Student Wallet]
+    B -.->|Updates| D[ Student Wallet]
     C -.->|Syncs| D
-    E[💼 Employer] -->|Verifies Hash| B
+    E[ Employer] -->|Verifies Hash| B
     B -->|Returns Valid/Invalid| E
 ```
 
@@ -38,23 +38,23 @@ An employer verifies the diploma by scanning it; the system queries the blockcha
 
 ---
 
-## ✅ Project Status Report
+##  Project Status Report
 
 What is finished and what is coming next?
 
 | Feature                        | Status       | Notes                                   |
 | :----------------------------- | :----------- | :-------------------------------------- |
-| **Blockchain Smart Contracts** | 🟢 **DONE**  | Deployment-ready (Solidity).            |
-| **Student Dashboard**          | 🟢 **DONE**  | View & Share credentials.               |
-| **University Portal**          | 🟢 **DONE**  | Issue degrees & track history.          |
-| **Verification System**        | 🟢 **DONE**  | Instant public verification.            |
-| **Government Dashboard**       | 🟢 **DONE**  | Manage authorized universities.         |
-| **Mobile App**                 | ⚪ _Planned_ | iOS/Android integration coming soon.    |
-| **Real Mainnet Deployment**    | 🟢 **READY** | Deploy contract to Polygon.             |
+| **Blockchain Smart Contracts** |  **DONE**  | Deployment-ready (Solidity).            |
+| **Student Dashboard**          |  **DONE**  | View & Share credentials.               |
+| **University Portal**          |  **DONE**  | Issue degrees & track history.          |
+| **Verification System**        |  **DONE**  | Instant public verification.            |
+| **Government Dashboard**       |  **DONE**  | Manage authorized universities.         |
+| **Mobile App**                 |  _Planned_ | iOS/Android integration coming soon.    |
+| **Real Mainnet Deployment**    |  **READY** | Deploy contract to Polygon.             |
 
 ---
 
-## 🚀 How to Run This Project
+##  How to Run This Project
 
 Follow these simple steps to start the application on your computer.
 
@@ -89,7 +89,7 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
-## 🔗 Deploy Smart Contract (Production)
+##  Deploy Smart Contract (Production)
 
 To enable real on-chain credential issuance:
 
@@ -107,7 +107,7 @@ Add your wallet's private key to `.env`:
 DEPLOYER_PRIVATE_KEY=your_private_key_here
 ```
 
-⚠️ **Never commit your private key!** Make sure `.env` is in `.gitignore`.
+ **Never commit your private key!** Make sure `.env` is in `.gitignore`.
 
 ### Step 3: Deploy to Polygon
 
@@ -131,14 +131,14 @@ npx hardhat verify --network polygon YOUR_CONTRACT_ADDRESS
 
 ---
 
-## 🎮 Demo Mode vs Production
+##  Demo Mode vs Production
 
 | Feature | Demo Mode | Production |
 |---------|-----------|------------|
-| IPFS Storage | ✅ Real (Pinata) | ✅ Real (Pinata) |
-| Blockchain | ❌ Local cache | ✅ Polygon mainnet |
-| Wallet Required | ❌ No | ✅ MetaMask |
-| Gas Fees | ❌ None | ✅ MATIC required |
+| IPFS Storage |  Real (Pinata) |  Real (Pinata) |
+| Blockchain |  Local cache |  Polygon mainnet |
+| Wallet Required |  No |  MetaMask |
+| Gas Fees |  None |  MATIC required |
 
 Demo mode is perfect for testing. Production mode requires:
 1. MetaMask wallet with MATIC
@@ -147,13 +147,13 @@ Demo mode is perfect for testing. Production mode requires:
 
 ---
 
-## 📂 Documentation Links
+##  Documentation Links
 
 For more details, check the `docs/` folder:
 
-- **[📘 Project Overview](./docs/Project_Documentation.md)**: Deep dive into the tech.
-- **[📂 File Guide](./docs/File_Structure_and_Usage.md)**: Explanation of every file.
+- **[ Project Overview](./docs/Project_Documentation.md)**: Deep dive into the tech.
+- **[ File Guide](./docs/File_Structure_and_Usage.md)**: Explanation of every file.
 
 ---
 
-_© 2025 morningstarxcdcode. All Rights Reserved._
+_ 2025 morningstarxcdcode. All Rights Reserved._
