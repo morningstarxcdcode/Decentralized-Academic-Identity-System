@@ -1,0 +1,77 @@
+.dashboard {
+    padding-top: 100px;
+    padding-bottom: 60px;
+    min-height: 100vh;
+    background-color: var(--color-background);
+}
+
+.heroSection {
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.heroTitle {
+    margin-bottom: 16px;
+}
+
+.heroSubtitle {
+    color: var(--color-text-muted);
+    font-size: 1.1rem;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.gridContainer {
+    padding: 0 20px;
+}
+
+.statBig {
+    font-size: 4rem;
+    font-weight: 800;
+    color: #fff;
+    text-align: center;
+    line-height: 1;
+}
+
+.actionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100px;
+    background: rgba(59, 130, 246, 0.2);
+    border-radius: 12px;
+    color: #3b82f6;
+    transition: all 0.3s ease;
+}
+
+.actionHeader:hover {
+    background: rgba(59, 130, 246, 0.4);
+    transform: scale(1.05);
+}
+
+.statusLive {
+    font-family: monospace;
+    color: #10b981;
+    font-weight: bold;
+    text-align: center;
+    padding: 20px;
+    border: 1px dashed #10b981;
+    border-radius: 8px;
+}
+
+.auditList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.auditItem {
+    font-size: 0.8rem;
+    color: #aaa;
+    padding: 8px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
