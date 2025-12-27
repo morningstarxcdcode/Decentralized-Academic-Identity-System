@@ -12,7 +12,7 @@ A professional, blockchain-based platform where:
 
 ---
 
-## 💡 How It Works (The Flow)
+## How It Works (The Flow)
 
 ```mermaid
 graph TD
