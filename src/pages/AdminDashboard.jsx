@@ -56,9 +56,15 @@ const AdminDashboard = () => {
     }
 
     return (
-        <div className={`container ${styles.adminDashboard}`}>
+        <Motion.div 
+            className={`container ${styles.adminDashboard}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+        >
             {/* Header */}
-            <header className={styles.header}>
+            <header className={`${styles.header} glass-panel`}>
                 <div className={styles.adminProfile}>
                     <div className={styles.avatar}>
                         <ShieldAlert size={28} />
@@ -93,8 +99,13 @@ const AdminDashboard = () => {
 
             <main className={styles.mainLayout}>
                 {/* Visualizations Area */}
-                <div className={styles.visuals}>
-                    <div className={styles.section}>
+                <Motion.div 
+                    className={styles.visuals}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                >
+                    <div className={`${styles.section} glass-panel`}>
                         <div className={styles.sectionHeader}>
                             <h2 className={styles.sectionTitle}><TrendingUp size={18} /> Usage Analytics</h2>
                         </div>
@@ -106,7 +117,7 @@ const AdminDashboard = () => {
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                                     <XAxis dataKey="day" stroke="#666" fontSize={12} />
                                     <YAxis stroke="#666" fontSize={12} />
-                                    <Tooltip contentStyle={{backgroundColor: '#000', border: '1px solid #333'}} />
+                                    <Tooltip contentStyle={{backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', color: '#fff'}} />
                                     <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={3} dot={{fill: '#6366f1'}} />
                                 </LineChart>
                             </ResponsiveContainer>
@@ -118,17 +129,22 @@ const AdminDashboard = () => {
                                 <BarChart data={trafficData}>
                                     <XAxis dataKey="time" stroke="#666" fontSize={12} />
                                     <YAxis stroke="#666" fontSize={12} />
-                                    <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} />
+                                    <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', color: '#fff'}} />
                                     <Bar dataKey="calls" fill="#a855f7" radius={[4, 4, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
-                </div>
+                </Motion.div>
 
                 {/* Controls & Logs Area */}
-                <div className={styles.sidebar}>
-                    <div className={styles.section}>
+                <Motion.div 
+                    className={styles.sidebar}
+                    initial={{ x: 20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                >
+                    <div className={`${styles.section} glass-panel`}>
                         <div className={styles.sectionHeader}>
                             <h2 className={styles.sectionTitle}><Lock size={18} /> Admin Actions</h2>
                         </div>
@@ -162,7 +178,7 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    <div className={styles.section} style={{marginTop: 30}}>
+                    <div className={`${styles.section} glass-panel`} style={{marginTop: 30}}>
                         <div className={styles.sectionHeader}>
                             <h2 className={styles.sectionTitle}><Terminal size={18} /> System Logs</h2>
                             <RefreshCw size={14} className={styles.refreshIcon} />
@@ -180,9 +196,9 @@ const AdminDashboard = () => {
                             ))}
                         </div>
                     </div>
-                </div>
+                </Motion.div>
             </main>
-        </div>
+        </Motion.div>
     );
 };
 

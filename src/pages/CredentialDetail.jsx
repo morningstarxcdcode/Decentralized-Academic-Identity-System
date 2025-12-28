@@ -1,12 +1,12 @@
+import { QRCodeSVG } from 'qrcode.react';
+import { Award, CheckCircle2, Share2, Download, Shield, ArrowLeft, Calendar, Building, Hash, AlertCircle, ExternalLink, QrCode, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion as m } from 'framer-motion';
-import { Award, CheckCircle2, Share2, Download, Shield, ArrowLeft, Calendar, Building, Hash, AlertCircle, ExternalLink } from 'lucide-react';
 import { useBlockchain } from '../contexts/BlockchainContext';
 import TiltCard from '../components/ui/TiltCard';
 import SpotlightCard from '../components/ui/SpotlightCard';
 import styles from '../styles/CredentialDetail.module.css';
-
 const CredentialDetail = () => {
     const { id } = useParams();
     const { verifyCredential, loading: blockchainLoading } = useBlockchain();
@@ -14,6 +14,7 @@ const CredentialDetail = () => {
     const [verificationResult, setVerificationResult] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [showQR, setShowQR] = useState(false);
 
     useEffect(() => {
         const loadCredential = async () => {
@@ -170,6 +171,9 @@ const CredentialDetail = () => {
                     </TiltCard>
                     
                     <div className={styles.certActions}>
+                        <button className={styles.actionBtn} onClick={() => setShowQR(true)}>
+                            <QrCode size={16} /> Show QR Code
+                        </button>
                         <button className={styles.actionBtn} onClick={handleShare}>
                             <Share2 size={16} /> Share
                         </button>
@@ -233,6 +237,38 @@ const CredentialDetail = () => {
                     )}
                 </div>
             </div>
+
+            {/* QR Modal */}
+            {showQR && (
+                <div className={styles.qrModalOverlay} onClick={() => setShowQR(false)}>
+                    <m.div 
+                        className={styles.qrModal}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button className={styles.closeBtn} onClick={() => setShowQR(false)}>
+                            <X size={24} />
+                        </button>
+                        <h3>Credential QR Code</h3>
+                        <p>Scan this code at the Verifier Portal</p>
+                        
+                        <div className={styles.qrWrapper}>
+                            <QRCodeSVG 
+                                value={credential.hash} 
+                                size={200}
+                                level={"H"}
+                                includeMargin={true}
+                            />
+                        </div>
+                        
+                        <div className={styles.qrHash}>
+                            {credential.hash.slice(0, 20)}...
+                        </div>
+                    </m.div>
+                </div>
+            )}
         </div>
     );
 };

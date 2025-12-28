@@ -161,7 +161,14 @@ const UniversityPortal = () => {
     const showOnChainWarning = isDemoMode();
 
     return (
-        <div className={`container ${styles.portal}`}>
+
+        <Motion.div 
+            className={`container ${styles.portal}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+        >
             <header className={styles.header}>
                 <div className={styles.topInfo}>
                     <div className={styles.avatar}>
@@ -177,7 +184,8 @@ const UniversityPortal = () => {
                                 background: '#f59e0b', 
                                 color: '#000', 
                                 borderRadius: 4, 
-                                fontSize: '0.75rem' 
+                                fontSize: '0.75rem',
+                                fontWeight: 600
                             }}>
                                 Demo Mode
                             </span>
@@ -190,12 +198,16 @@ const UniversityPortal = () => {
                         background: 'rgba(245, 158, 11, 0.1)', 
                         border: '1px solid #f59e0b', 
                         borderRadius: 8, 
-                        padding: '8px 16px', 
-                        marginBottom: 16,
-                        fontSize: '0.85rem',
-                        color: '#f59e0b'
+                        padding: '12px 16px', 
+                        marginBottom: 24,
+                        fontSize: '0.9rem',
+                        color: '#f59e0b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
                     }}>
-                        ⚠️ Demo mode: Credentials are stored on IPFS but not on blockchain. Connect a real wallet for on-chain issuance.
+                        <AlertCircle size={18} />
+                        Demo mode: Credentials are stored on IPFS but not on blockchain. Connect a real wallet for on-chain issuance.
                     </div>
                 )}
                 <nav className={styles.portalNav}>
@@ -208,12 +220,13 @@ const UniversityPortal = () => {
                 key={activeTab}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
                 className={styles.content}
             >
                 {activeTab === 'issue' ? (
                     <div className={styles.issueFormWrapper}>
-                        <form onSubmit={handleSubmit} className={styles.form}>
+                        <form onSubmit={handleSubmit} className={`${styles.form} glass-panel`}>
                             <h3>Issue New Certificate</h3>
                             
                             <div className={styles.formGrid}>
@@ -297,10 +310,14 @@ const UniversityPortal = () => {
                             </div>
 
                             {fileCID && (
-                                <div className={styles.cidDisplay}>
+                                <Motion.div 
+                                    className={styles.cidDisplay}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                >
                                     <FileText size={16} />
                                     <span>File CID: {fileCID}</span>
-                                </div>
+                                </Motion.div>
                             )}
 
                             <div className={styles.formButtons}>
@@ -328,10 +345,14 @@ const UniversityPortal = () => {
                             )}
 
                             {status && (
-                                <div className={`${styles.status} ${styles[status.type]}`}>
+                                <Motion.div 
+                                    className={`${styles.status} ${styles[status.type]}`}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                >
                                     {status.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
                                     {status.msg}
-                                </div>
+                                </Motion.div>
                             )}
                         </form>
                     </div>
@@ -339,7 +360,7 @@ const UniversityPortal = () => {
                     <HistoryTable />
                 )}
             </Motion.div>
-        </div>
+        </Motion.div>
     );
 };
 

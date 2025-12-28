@@ -4,7 +4,10 @@ import {
   signInWithPopup,
   signOut as firebaseSignOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
+  confirmPasswordReset as firebaseConfirmPasswordReset,
+  verifyPasswordResetCode
 } from 'firebase/auth';
 import {
   doc,
@@ -12,7 +15,9 @@ import {
   getDoc,
   updateDoc,
   arrayUnion,
-  serverTimestamp
+  serverTimestamp,
+  collection,
+  getDocs
 } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../config/firebase';
 
@@ -81,17 +86,31 @@ export const updateUserProfile = async (uid, data) => {
 
 // ============ Credential Reference Methods (for non-wallet users) ============
 
+// ============ Credential Storage Methods (for persistent Demo Mode) ============
+
+export const addCredential = async (uid, credentialData) => {
+  // Store in a subcollection 'credentials' under the user
+  // Use hash as doc ID to prevent duplicates
+  const credRef = doc(db, 'users', uid, 'credentials', credentialData.hash);
+  await setDoc(credRef, {
+    ...credentialData,
+    createdAt: serverTimestamp()
+  });
+};
+
+export const getUserCredentials = async (uid) => {
+  const credsRef = collection(db, 'users', uid, 'credentials');
+  const snapshot = await getDocs(credsRef);
+  return snapshot.docs.map(doc => doc.data());
+};
+
+// Legacy ref method (kept for backward compatibility if needed, but likely unused now)
 export const addCredentialRef = async (uid, credentialHash) => {
   const userRef = doc(db, 'users', uid);
   await updateDoc(userRef, {
     credentialRefs: arrayUnion(credentialHash),
     updatedAt: serverTimestamp()
   });
-};
-
-export const getCredentialRefs = async (uid) => {
-  const profile = await getUserProfile(uid);
-  return profile?.credentialRefs || [];
 };
 
 // ============ Helper to generate custodial ID for non-wallet users ============
@@ -133,6 +152,61 @@ export const isVerificationExpired = (verification) => {
   return new Date(verification.expiresAt) < new Date();
 };
 
+// ============ Password Recovery Methods ============
+
+export const sendPasswordResetEmail = async (email) => {
+  try {
+    await firebaseSendPasswordResetEmail(auth, email);
+    return { success: true };
+  } catch (error) {
+    // Return generic message for security (don't reveal if email exists)
+    console.error('Password reset error:', error);
+    return { success: true }; // Always return success for security
+  }
+};
+
+export const confirmPasswordReset = async (code, newPassword) => {
+  try {
+    // Verify the code first
+    await verifyPasswordResetCode(auth, code);
+    // Then reset the password
+    await firebaseConfirmPasswordReset(auth, code, newPassword);
+    return { success: true };
+  } catch (error) {
+    console.error('Password reset confirmation error:', error);
+    let message = 'Failed to reset password. Please try again.';
+    if (error.code === 'auth/expired-action-code') {
+      message = 'This password reset link has expired. Please request a new one.';
+    } else if (error.code === 'auth/invalid-action-code') {
+      message = 'This password reset link is invalid. Please request a new one.';
+    } else if (error.code === 'auth/weak-password') {
+      message = 'Password must be at least 6 characters.';
+    }
+    throw new Error(message);
+  }
+};
+
+// ============ OCID Linking Methods ============
+
+export const linkOCID = async (uid, ocIdData) => {
+  const userRef = doc(db, 'users', uid);
+  await updateDoc(userRef, {
+    ocId: ocIdData.ocId,
+    ocIdLinkedAt: serverTimestamp(),
+    ethAddress: ocIdData.ethAddress || null,
+    updatedAt: serverTimestamp()
+  });
+};
+
+export const unlinkOCID = async (uid) => {
+  const userRef = doc(db, 'users', uid);
+  await updateDoc(userRef, {
+    ocId: null,
+    ocIdLinkedAt: null,
+    updatedAt: serverTimestamp()
+  });
+};
+
 export default {
   signUp,
   signIn,
@@ -142,10 +216,15 @@ export default {
   createUserProfile,
   getUserProfile,
   updateUserProfile,
-  addCredentialRef,
-  getCredentialRefs,
+  addCredential, // New
+  getUserCredentials, // New
+  addCredentialRef, // Legacy
   generateCustodialDID,
   saveVerification,
   getVerificationStatus,
-  isVerificationExpired
+  isVerificationExpired,
+  sendPasswordResetEmail,
+  confirmPasswordReset,
+  linkOCID,
+  unlinkOCID
 };

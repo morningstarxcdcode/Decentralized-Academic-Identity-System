@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { pinataService } from '../services/pinataService';
 import { contractService } from '../services/contractService';
 import { useAuth } from './AuthContext';
-import { addCredentialRef, getVerificationStatus, isVerificationExpired } from '../services/firebaseService';
+import { addCredential, getUserCredentials, getVerificationStatus, isVerificationExpired } from '../services/firebaseService';
 
 const BlockchainContext = createContext();
 
@@ -32,8 +32,22 @@ export const BlockchainProvider = ({ children }) => {
   ]);
 
   // Credentials cache (fetched from blockchain)
-  const [credentialsCache, setCredentialsCache] = useState({});
-  const [issuersCache, setIssuersCache] = useState({});
+  const [credentialsCache, setCredentialsCache] = useState({
+    // Pre-seed a valid demo credential for the Verifier Portal demo
+    "0xDEMO_CREDENTIAL_HASH": {
+      hash: "0xDEMO_CREDENTIAL_HASH",
+      studentName: "Alex Rivera",
+      courseName: "Advanced Blockchain Architecture",
+      issuer: "0xDEMO_UNIVERSITY_ADDRESS",
+      issuedDate: new Date().toISOString(),
+      isValid: true,
+      demoMode: true,
+      ipfsCID: "QmDemoCid123456789"
+    }
+  });
+  const [issuersCache, setIssuersCache] = useState({
+    "0xDEMO_UNIVERSITY_ADDRESS": { name: "MIT Tech", authorized: true }
+  });
 
   const addNotification = (title, message, type = 'info') => {
     setNotifications(prev => [{
@@ -98,6 +112,25 @@ export const BlockchainProvider = ({ children }) => {
       };
     }
   }, [walletAddress]);
+
+  // Load persistent credentials (Demo Mode / Firebase)
+  useEffect(() => {
+    const loadCredentials = async () => {
+      if (auth?.user?.uid) {
+        try {
+          const savedCreds = await getUserCredentials(auth.user.uid);
+          if (savedCreds && savedCreds.length > 0) {
+            const credMap = {};
+            savedCreds.forEach(c => credMap[c.hash] = c);
+            setCredentialsCache(prev => ({ ...prev, ...credMap }));
+          }
+        } catch (e) {
+          console.warn('Failed to load credentials from Firestore:', e);
+        }
+      }
+    };
+    loadCredentials();
+  }, [auth?.user?.uid]);
 
   // --- Wallet Connection ---
   const connectWallet = async (selectedRole) => {
@@ -169,11 +202,11 @@ export const BlockchainProvider = ({ children }) => {
     addNotification('Disconnected', 'Wallet disconnected.', 'info');
   };
 
-  const getAccount = () => {
+  const getAccount = useCallback(() => {
     if (walletAddress) return walletAddress;
     if (auth?.getDID) return auth.getDID();
     return null;
-  };
+  }, [walletAddress, auth]);
 
   const getRole = () => {
     if (demoRole) return demoRole;
@@ -327,9 +360,9 @@ export const BlockchainProvider = ({ children }) => {
         if (studentDID.startsWith('did:firebase:')) {
           const uid = studentDID.replace('did:firebase:', '');
           try {
-            await addCredentialRef(uid, credHash);
+            await addCredential(uid, newCred);
           } catch (e) {
-            console.warn('Could not add credential ref:', e);
+            console.warn('Could not add credential to Firestore:', e);
           }
         }
 
@@ -360,9 +393,69 @@ export const BlockchainProvider = ({ children }) => {
     return results;
   };
 
+  // Demo Simulation State
+  const [demoRotationIndex, setDemoRotationIndex] = useState(0);
+
+  const demoScenarios = [
+    {
+      hash: "0xDEMO_CREDENTIAL_HASH",
+      studentName: "none",
+      courseName: "Advanced Blockchain Architecture",
+      issuer: "0xDEMO_GNIT_ADDRESS", 
+      issuerName: "GNIT",
+      issuedDate: "2025-12-28T10:00:00Z",
+      isValid: true,
+      demoMode: true,
+      ipfsCID: "QmDemoCid1"
+    },
+    {
+      hash: "0xDEMO_CREDENTIAL_HASH",
+      studentName: "Sourav Rajak",
+      courseName: "Advanced Blockchain Architecture",
+      issuer: "0xDEMO_UNKNOWN_ADDRESS",
+      issuerName: "none",
+      issuedDate: "2025-12-28T10:00:00Z",
+      isValid: true,
+      demoMode: true,
+      ipfsCID: "QmDemoCid2"
+    }
+  ];
+
   const verifyCredential = useCallback(async (hashOrId) => {
     setLoading(true);
     
+    // DEMO SIMULATION LOGIC
+    // DEMO SIMULATION LOGIC
+    if (hashOrId === "0xDEMO_CREDENTIAL_HASH") {
+      // Simulate network delay
+      await new Promise(r => setTimeout(r, 1500));
+      
+      const fixedScenario = {
+        hash: "0xDEMO_CREDENTIAL_HASH",
+        studentName: "Sourav Rajak",
+        courseName: "none(Aadhar)",
+        issuer: "0xDEMO_UIDAI_ADDRESS", 
+        issuerName: "the Unique Identification Authority of India (UIDAI)", 
+        issuedDate: "2025-12-28T10:00:00Z",
+        // VerificationModal uses record.timestamp for date
+        timestamp: "2025-12-28T10:00:00Z",
+        isValid: true,
+        demoMode: true,
+        ipfsCID: "QmDemoCidUIDAI123"
+      };
+
+      setLoading(false);
+      return { 
+        valid: fixedScenario.isValid, 
+        record: fixedScenario, 
+        data: { ...fixedScenario, description: "Verified Identity Document" },
+        issuerName: fixedScenario.issuerName,
+        ipfsUrl: "#",
+        onChain: false,
+        demoMode: true
+      };
+    }
+
     try {
       // First check on-chain if contract is ready
       if (contractReady) {
@@ -390,7 +483,7 @@ export const BlockchainProvider = ({ children }) => {
         }
       }
 
-      // Fallback to cache (for demo mode credentials)
+      // Fallback to cache (for other demo mode credentials)
       const cred = credentialsCache[hashOrId];
       if (!cred) {
         setLoading(false);
@@ -419,7 +512,7 @@ export const BlockchainProvider = ({ children }) => {
       setLoading(false);
       return { valid: false, message: e.message };
     }
-  }, [contractReady, credentialsCache, issuersCache]);
+  }, [contractReady, credentialsCache, issuersCache, demoRotationIndex]);
 
   const batchVerifyCredentials = async (hashes) => {
     setLoading(true);
@@ -471,12 +564,12 @@ export const BlockchainProvider = ({ children }) => {
   const getMyCredentials = useCallback(() => {
     const account = getAccount();
     return Object.values(credentialsCache).filter(c => c.studentDID === account);
-  }, [credentialsCache, walletAddress, auth]);
+  }, [credentialsCache, getAccount]);
 
   const getIssuedCredentials = useCallback(() => {
     const account = getAccount();
     return Object.values(credentialsCache).filter(c => c.issuer === account);
-  }, [credentialsCache, walletAddress, auth]);
+  }, [credentialsCache, getAccount]);
 
   const getAllIssuers = () => issuersCache;
 

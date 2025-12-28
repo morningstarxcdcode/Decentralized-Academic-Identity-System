@@ -1,5 +1,5 @@
 .portal {
-    padding-top: 100px;
+    padding-top: 130px;
 }
 
 .header {
@@ -79,16 +79,16 @@
     margin: 0 auto;
 }
 
+
 .form {
-    background: rgba(255, 255, 255, 0.02);
     padding: 40px;
     border-radius: var(--radius-lg);
-    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .form h3 {
     margin-bottom: 30px;
-    color: var(--color-accent);
+    color: var(--color-text-main);
+    font-size: 1.5rem;
 }
 
 .formGrid {
@@ -101,18 +101,28 @@
 .formGroup label {
     display: block;
     margin-bottom: 10px;
-    color: var(--color-accent);
+    color: var(--color-text-muted);
     font-weight: 500;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .formGroup input, .select {
     width: 100%;
-    background: #000;
+    background: rgba(15, 23, 42, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 12px;
+    padding: 14px;
     border-radius: var(--radius-sm);
     color: #fff;
     font-family: var(--font-mono);
+    transition: all var(--transition-fast);
+}
+
+.formGroup input:focus, .select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .fileActions {
@@ -132,28 +142,40 @@
     border: 1px dashed rgba(255, 255, 255, 0.2);
     border-radius: var(--radius-sm);
     color: var(--color-text-muted);
+    transition: all var(--transition-fast);
+}
+
+.fileUpload:hover {
+    border-color: var(--color-primary);
+    background: rgba(59, 130, 246, 0.05);
 }
 
 .chooseFile {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.1);
     padding: 6px 12px;
     border-radius: 4px;
     font-size: 0.8rem;
     color: #fff;
+    transition: background var(--transition-fast);
+}
+
+.chooseFile:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .pinataBtn {
-    background: #ff7c50;
+    background: var(--color-secondary);
     color: #fff;
     padding: 16px 24px;
     border-radius: var(--radius-sm);
-    font-weight: 700;
+    font-weight: 600;
     transition: all 0.2s;
 }
 
 .pinataBtn:hover {
-    background: #ff5a22;
+    background: #7c3aed; /* Violet 600 */
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
 }
 
 .formButtons {
@@ -163,26 +185,32 @@
 
 .submitBtn {
     padding: 16px 32px;
-    background: #fff;
-    color: #000;
-    font-weight: 700;
+    background: var(--color-primary);
+    color: #fff;
+    font-weight: 600;
     border-radius: var(--radius-sm);
     transition: all 0.2s;
 }
 
 .batchBtn {
     padding: 16px 32px;
-    background: rgba(0, 240, 255, 0.1);
+    background: transparent;
     color: var(--color-primary);
     border: 1px solid var(--color-primary);
-    font-weight: 700;
+    font-weight: 600;
     border-radius: var(--radius-sm);
     transition: all 0.2s;
 }
 
-.submitBtn:hover, .batchBtn:hover {
+.submitBtn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    background: var(--color-primary-dark);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.batchBtn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    transform: translateY(-2px);
 }
 
 .cancelBtn {

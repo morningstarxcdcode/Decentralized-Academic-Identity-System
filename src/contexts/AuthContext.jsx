@@ -11,8 +11,13 @@ import {
   generateCustodialDID,
   saveVerification,
   getVerificationStatus,
-  isVerificationExpired
+  isVerificationExpired,
+  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
+  confirmPasswordReset as firebaseConfirmPasswordReset,
+  linkOCID as firebaseLinkOCID,
+  unlinkOCID as firebaseUnlinkOCID
 } from '../services/firebaseService';
+import { validateForRole, suggestRole } from '../services/emailDomainValidator';
 
 const AuthContext = createContext(null);
 
@@ -30,6 +35,7 @@ export const useAuth = () => {
       hasWallet: false,
       isStudentVerified: false,
       verification: null,
+      role: 'student',
       signUp: async () => {},
       signIn: async () => {},
       signInWithGoogle: async () => {},
@@ -38,7 +44,14 @@ export const useAuth = () => {
       linkWallet: async () => {},
       getDID: () => null,
       saveStudentVerification: async () => {},
-      checkVerificationStatus: async () => ({ isVerified: false, verification: null })
+      checkVerificationStatus: async () => ({ isVerified: false, verification: null }),
+      sendPasswordResetEmail: async () => {},
+      confirmPasswordReset: async () => {},
+      validateEmailForRole: () => ({ isValid: true }),
+      suggestRoleForEmail: () => 'student',
+      switchRole: async () => {},
+      linkOCID: async () => {},
+      unlinkOCID: async () => {}
     };
   }
   return context;
@@ -129,6 +142,12 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
+      // Validate email domain for the selected role
+      const validation = validateForRole(email, role);
+      if (!validation.isValid) {
+        throw new Error(validation.reason || 'Email domain not allowed for this role');
+      }
+      
       const userCredential = await firebaseSignUp(email, password, displayName);
       
       // Create user profile in Firestore

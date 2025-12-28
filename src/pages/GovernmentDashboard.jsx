@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ShieldCheck, UserCheck, Activity, Globe, Plus, FileText, Wallet } from 'lucide-react';
+import { ShieldCheck, UserCheck, Activity, Globe, Plus, FileText, Wallet, CheckCircle } from 'lucide-react';
+import { motion as Motion } from 'framer-motion';
 import { BentoGrid, BentoGridItem } from '../components/ui/BentoGrid';
 import { WavyBackground } from '../components/ui/WavyBackground';
 import { TypewriterEffect } from '../components/ui/TypewriterEffect';
@@ -116,26 +117,47 @@ const GovernmentDashboard = () => {
     const showDemoWarning = isDemoMode();
 
     return (
-        <div className={styles.dashboard}>
+        <Motion.div 
+            className={styles.dashboard}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+        >
             <div className={styles.heroSection}>
                 <TypewriterEffect words={titleWords} className={styles.heroTitle} />
-                <p className={styles.heroSubtitle}>
+                <Motion.p 
+                    className={styles.heroSubtitle}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 1 }}
+                >
                     Oversight and Regulation of Decentralized Academic Identity
-                </p>
+                </Motion.p>
                 {showDemoWarning && (
-                    <div style={{ 
-                        background: 'rgba(245, 158, 11, 0.1)', 
-                        border: '1px solid #f59e0b', 
-                        borderRadius: 8, 
-                        padding: '8px 16px', 
-                        marginTop: 16,
-                        fontSize: '0.85rem',
-                        color: '#f59e0b',
-                        maxWidth: 600,
-                        margin: '16px auto 0'
-                    }}>
-                        ⚠️ Demo mode: Authorizations are stored locally. Connect the admin wallet for on-chain operations.
-                    </div>
+                    <Motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 1.2 }}
+                        style={{ 
+                            background: 'rgba(245, 158, 11, 0.1)', 
+                            border: '1px solid #f59e0b', 
+                            borderRadius: 8, 
+                            padding: '10px 20px', 
+                            marginTop: 20,
+                            fontSize: '0.9rem',
+                            color: '#f59e0b',
+                            maxWidth: 600,
+                            margin: '20px auto 0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '10px'
+                        }}
+                    >
+                        <ShieldCheck size={18} />
+                        Demo mode: Authorizations are stored locally. Connect the admin wallet for on-chain operations.
+                    </Motion.div>
                 )}
             </div>
 
@@ -145,7 +167,7 @@ const GovernmentDashboard = () => {
                     title="Active Issuers"
                     description="Universities currently accredited."
                     header={
-                        <div className={styles.statBig}>
+                        <div className={`${styles.statBig} glass-panel border-none`}>
                             {Object.keys(issuers).length}
                         </div>
                     }
@@ -159,7 +181,7 @@ const GovernmentDashboard = () => {
                     description="Authorize a new university to issue credentials."
                     header={<div className={styles.actionHeader}><Plus size={40} /></div>}
                     icon={<ShieldCheck size={20} />}
-                    className="md:col-span-1 bg-blue-900"
+                    className="md:col-span-1 cursor-pointer"
                     onClick={handleAddClick}
                 />
 
@@ -167,7 +189,12 @@ const GovernmentDashboard = () => {
                 <BentoGridItem 
                     title="Global Network"
                     description="System operational status."
-                    header={<div className={styles.statusLive}>LIVE: BLOCK #892102</div>}
+                    header={
+                        <div className={styles.statusLive}>
+                            <span className="animate-pulse mr-2">●</span>
+                            LIVE: BLOCK #892102
+                        </div>
+                    }
                     icon={<Globe size={20} />}
                     className="md:col-span-1"
                 />
@@ -178,11 +205,19 @@ const GovernmentDashboard = () => {
                     description="Credential minting rate over time."
                     className="md:col-span-2"
                     header={
-                        <div style={{width: '100%', height: '150px'}}>
+                        <div style={{width: '100%', height: '150px'}} className="glass-panel p-2 rounded-xl">
                              <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={dummyData}>
                                     <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                                    <Tooltip contentStyle={{background: '#333', border: 'none'}} />
+                                    <Tooltip 
+                                        contentStyle={{
+                                            background: '#0f172a', 
+                                            border: '1px solid rgba(255,255,255,0.1)', 
+                                            borderRadius: '8px',
+                                            color: '#fff'
+                                        }} 
+                                        cursor={{fill: 'rgba(255,255,255,0.05)'}}
+                                    />
                                 </BarChart>
                              </ResponsiveContainer>
                         </div>
@@ -197,15 +232,15 @@ const GovernmentDashboard = () => {
                     className="md:col-span-1"
                     header={
                         <div className={styles.auditList}>
-                            <div className={styles.auditItem}>Waitlisted Univ X...</div>
-                            <div className={styles.auditItem}>Revoked Key #99...</div>
-                            <div className={styles.auditItem}>Consensus Reached...</div>
+                            <div className={styles.auditItem}><ShieldCheck size={12} /> Waitlisted Univ X...</div>
+                            <div className={styles.auditItem}><ShieldCheck size={12} /> Revoked Key #99...</div>
+                            <div className={styles.auditItem}><CheckCircle size={12} /> Consensus Reached...</div>
                         </div>
                     }
                     icon={<FileText size={20} />}
                 />
             </BentoGrid>
-        </div>
+        </Motion.div>
     );
 };
 

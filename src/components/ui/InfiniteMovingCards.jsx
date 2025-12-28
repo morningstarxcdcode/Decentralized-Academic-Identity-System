@@ -89,11 +89,13 @@ export const InfiniteMovingCards = ({
             className="w-[350px] max-w-full relative rounded-2xl border border-b-0 flex-shrink-0 border-slate-700 px-8 py-6 md:w-[450px]"
             style={{
                 width: '350px',
-                background: 'linear-gradient(180deg, rgba(30,30,30,0.8), rgba(10,10,10,0.9))',
+                background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.95))',
                 borderRadius: '16px',
-                border: '1px solid rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.08)',
                 padding: '24px',
-                flexShrink: 0
+                flexShrink: 0,
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)'
             }}
             key={item.name + idx}
           >

@@ -111,13 +111,25 @@ const StudentDashboard = () => {
     const credentials = getMyCredentials();
 
     return (
-        <div className={styles.dashboard}>
+
+        <Motion.div 
+            className={styles.dashboard}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+        >
             <div className="container">
                 {/* Verification Banner - Show if not verified */}
                 {!isVerified && (
-                    <div className={styles.verificationBanner}>
+                    <Motion.div 
+                        className={styles.verificationBanner}
+                        initial={{ y: -20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.2 }}
+                    >
                         <div className={styles.bannerContent}>
-                            <AlertTriangle size={20} />
+                            <AlertTriangle size={24} className="text-amber-500" />
                             <div>
                                 <strong>Student Verification Required</strong>
                                 <p>Verify your student status to receive credentials from institutions.</p>
@@ -127,17 +139,22 @@ const StudentDashboard = () => {
                             className={styles.verifyNowBtn}
                             onClick={() => setShowVerificationModal(true)}
                         >
-                            <GraduationCap size={16} />
+                            <GraduationCap size={18} />
                             Verify Now
                         </button>
-                    </div>
+                    </Motion.div>
                 )}
 
                 {/* Wallet Header */}
-                <div className={styles.header}>
+                <Motion.div 
+                    className={`${styles.header} glass-panel`}
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                >
                     <div className={styles.profile}>
                         <div className={styles.avatar}>
-                            <UserCheck size={32} />
+                            <UserCheck size={28} />
                         </div>
                         <div className={styles.profileInfo}>
                             <h1>
@@ -165,7 +182,6 @@ const StudentDashboard = () => {
                             <span className={styles.label}>Balance</span>
                             <span className={styles.value}>{parseFloat(balance).toFixed(4)} MATIC</span>
                         </div>
-                        {isDemoMode() && <span className={styles.demoBadge}>Demo Mode</span>}
                         {isVerified ? (
                             <button 
                                 className={styles.verifiedBtn}
@@ -188,7 +204,7 @@ const StudentDashboard = () => {
                             <LogOut size={16} /> Disconnect
                         </button>
                     </div>
-                </div>
+                </Motion.div>
 
                 {/* Dashboard Nav */}
                 <nav className={styles.dashboardNav}>
@@ -200,18 +216,33 @@ const StudentDashboard = () => {
 
                 {/* Stats Row */}
                 <div className={styles.statsRow}>
-                    <div className={styles.statBox}>
+                    <Motion.div 
+                        className={styles.statBox}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.2 }}
+                    >
                         <span className={styles.statVal}>{credentials.length}</span>
                         <span className={styles.statLabel}>Total Credentials</span>
-                    </div>
-                    <div className={styles.statBox}>
+                    </Motion.div>
+                    <Motion.div 
+                        className={styles.statBox}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                    >
                         <span className={styles.statVal}>{credentials.filter(c => c.isValid).length}</span>
                         <span className={styles.statLabel}>Verified</span>
-                    </div>
-                    <div className={styles.statBox}>
+                    </Motion.div>
+                    <Motion.div 
+                        className={styles.statBox}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.4 }}
+                    >
                         <span className={styles.statVal}>0</span>
                         <span className={styles.statLabel}>Shared</span>
-                    </div>
+                    </Motion.div>
                 </div>
 
                 {/* Toolbar */}
@@ -231,7 +262,20 @@ const StudentDashboard = () => {
                 </div>
 
                 {/* Credentials Grid */}
-                <div className={styles.grid}>
+                <Motion.div 
+                    className={styles.grid}
+                    variants={{
+                        hidden: { opacity: 0 },
+                        show: {
+                            opacity: 1,
+                            transition: {
+                                staggerChildren: 0.1
+                            }
+                        }
+                    }}
+                    initial="hidden"
+                    animate="show"
+                >
                     {credentials.length === 0 ? (
                         <div className={styles.emptyState}>
                             <Award size={64} />
@@ -244,14 +288,15 @@ const StudentDashboard = () => {
                             className={styles.card}
                         >
                             <Motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.1 }}
+                                variants={{
+                                    hidden: { opacity: 0, y: 20 },
+                                    show: { opacity: 1, y: 0 }
+                                }}
                                 onClick={() => setSelectedCred(cred)}
                                 className={styles.cardInner}
                             >
                                 <div className={styles.cardHeader}>
-                                    <Award className={styles.cardIcon} size={24} />
+                                    <Award className={styles.cardIcon} size={28} />
                                     <span className={cred.isValid ? styles.statusValid : styles.statusRevoked}>
                                         {cred.isValid ? 'Verified' : 'Revoked'}
                                     </span>
@@ -260,14 +305,14 @@ const StudentDashboard = () => {
                                 <p className={styles.issuer}>Issuer: {cred.issuer?.slice(0, 12)}...</p>
                                 <div className={styles.cardFooter}>
                                     <span>{new Date(cred.timestamp).toLocaleDateString()}</span>
-                                    <Link to={`/credential/${cred.hash}`} className={styles.viewBtn}>
-                                        View Details
-                                    </Link>
+                                    <span className={styles.viewBtn}>
+                                        View Details <ExternalLink size={12} />
+                                    </span>
                                 </div>
                             </Motion.div>
                         </TiltCard>
                     ))}
-                </div>
+                </Motion.div>
             </div>
 
             {/* Detail Modal */}
@@ -285,8 +330,9 @@ const StudentDashboard = () => {
                 currentVerification={currentVerification}
                 userType="student"
             />
-        </div>
+        </Motion.div>
     );
+
 };
 
 const Modal = ({ cred, onClose }) => {

@@ -25,13 +25,13 @@
 .scene {
     --cube-size: 200px;
     --half-size: calc(var(--cube-size) / 2);
-    --panel-color: #f0f0f0;
-    --panel-dark: #d8d8d8;
-    --panel-edge: #c0c0c0;
-    --bracket-color: #ff7b54;
-    --bracket-light: #ff9a7a;
-    --bracket-dark: #e05530;
-    --shadow-color: rgba(0, 0, 0, 0.4);
+    --panel-color: #1e293b; /* Slate 800 */
+    --panel-dark: #0f172a; /* Slate 900 */
+    --panel-edge: #334155; /* Slate 700 */
+    --bracket-color: var(--color-primary);
+    --bracket-light: #60a5fa; /* Blue 400 */
+    --bracket-dark: var(--color-primary-dark);
+    --shadow-color: rgba(0, 0, 0, 0.6);
     
     width: var(--cube-size);
     height: var(--cube-size);
