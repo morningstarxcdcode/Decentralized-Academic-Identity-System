@@ -1,16 +1,22 @@
 import { ethers } from 'ethers';
 import { alchemyConfig } from '../config/services';
 
-// Alchemy blockchain integration layer - provides read/write capabilities
-// Manages wallet connections and transaction signing through MetaMask
+/**
+ * Alchemy Blockchain Integration Service
+ * Provides unified interface for blockchain read/write operations via Alchemy API
+ * Manages wallet connections and transaction signing through MetaMask
+ */
 
 let cachedProviderInstance = null;
 let cachedSignerInstance = null;
 
-// Singleton provider instance - reduces redundant RPC connection setup
-// Time complexity: O(1) initialization and lookup
+/**
+ * JSON RPC Provider
+ * Singleton pattern ensures only one provider instance exists
+ * Handles all read-only blockchain operations
+ */
 
-export const getProvider = () => {
+function initializeJsonRpcProvider() {
   if (cachedProviderInstance) {
     return cachedProviderInstance;
   }
@@ -19,126 +25,134 @@ export const getProvider = () => {
   cachedProviderInstance = new ethers.JsonRpcProvider(rpcEndpoint);
   
   return cachedProviderInstance;
-};
+}
 
-// Acquire signer from connected wallet for transaction authorization
-// Time complexity: O(1) lookup after initial connection
+/**
+ * Signer Instance
+ * Acquires signer from user's MetaMask wallet for transaction authorization
+ */
 
-export const getSigner = async () => {
+async function getSignerFromWallet() {
   if (typeof window === 'undefined' || !window.ethereum) {
-    throw new Error('Wallet not detected. Install MetaMask for transaction signing.');
+    throw new Error('MetaMask wallet not detected. Please install MetaMask to enable transactions.');
   }
   
-  const browserProvider = new ethers.BrowserProvider(window.ethereum);
-  cachedSignerInstance = await browserProvider.getSigner();
+  const walletProvider = new ethers.BrowserProvider(window.ethereum);
+  cachedSignerInstance = await walletProvider.getSigner();
   
   return cachedSignerInstance;
-};
+}
 
-// Initiate wallet connection through MetaMask UI
-// Prompts user to select account if multiple exist
+/**
+ * Wallet Connection Management
+ */
 
-export const connectWallet = async () => {
+async function initiateWalletConnection() {
   if (typeof window === 'undefined' || !window.ethereum) {
-    throw new Error('Wallet not detected. Install MetaMask for transaction signing.');
+    throw new Error('MetaMask not detected. Install MetaMask to connect your wallet.');
   }
   
-  const connectedAccounts = await window.ethereum.request({
+  const accountList = await window.ethereum.request({
     method: 'eth_requestAccounts'
   });
   
-  return connectedAccounts[0];
-};
+  return accountList[0];
+}
 
-// Retrieve currently connected account without user interaction
-// Returns null if no wallet connected
-
-export const getAccount = async () => {
+async function retrieveConnectedAccount() {
   if (typeof window === 'undefined' || !window.ethereum) {
     return null;
   }
   
-  const connectedAccounts = await window.ethereum.request({
+  const accountList = await window.ethereum.request({
     method: 'eth_accounts'
   });
   
-  return connectedAccounts[0] || null;
-};
+  return accountList[0] || null;
+}
 
-// Factory function for contract instances - supports both read and write operations
-// withSigner parameter determines transaction-signing capability
+/**
+ * Smart Contract Interface Factory
+ * Creates contract instance with optional signer for state-modifying transactions
+ */
 
-export const getContract = async (contractAddress, contractABI, withSigner = false) => {
-  if (withSigner) {
-    const signerInstance = await getSigner();
-    return new ethers.Contract(contractAddress, contractABI, signerInstance);
+async function createContractInterface(contractAddress, contractABI, includeSignerForWrites = false) {
+  if (includeSignerForWrites) {
+    const walletSigner = await getSignerFromWallet();
+    return new ethers.Contract(contractAddress, contractABI, walletSigner);
   }
   
-  return new ethers.Contract(contractAddress, contractABI, getProvider());
-};
+  return new ethers.Contract(contractAddress, contractABI, initializeJsonRpcProvider());
+}
 
-// Fetch blockchain network metadata - chain ID and name
-// Time complexity: O(1)
+/**
+ * Blockchain Information Queries
+ */
 
-export const getNetworkInfo = async () => {
-  const network = await getProvider().getNetwork();
+async function fetchNetworkInformation() {
+  const network = await initializeJsonRpcProvider().getNetwork();
   
   return {
     name: network.name,
     chainId: network.chainId
   };
-};
+}
 
-// Get current blockchain height in blocks
-// Time complexity: O(1)
+async function fetchLatestBlockHeight() {
+  return await initializeJsonRpcProvider().getBlockNumber();
+}
 
-export const getBlockNumber = async () => {
-  return await getProvider().getBlockNumber();
-};
-
-// Query account balance in native network currency
-// Time complexity: O(1)
-
-export const getBalance = async (accountAddress) => {
-  const balanceInWei = await getProvider().getBalance(accountAddress);
+async function fetchAccountBalance(walletAddress) {
+  const balanceInWei = await initializeJsonRpcProvider().getBalance(walletAddress);
   return ethers.formatEther(balanceInWei);
-};
+}
 
-// Subscribe to account switching events
-// Fired when user changes active account in MetaMask
+/**
+ * Event Listeners for MetaMask
+ */
 
-export const onAccountChange = (accountChangeHandler) => {
+function listenToAccountChanges(changeHandler) {
   if (typeof window !== 'undefined' && window.ethereum) {
-    window.ethereum.on('accountsChanged', accountChangeHandler);
+    window.ethereum.on('accountsChanged', changeHandler);
   }
-};
+}
 
-// Subscribe to network switching events
-// Called when user changes blockchain network
-
-export const onNetworkChange = (networkChangeHandler) => {
+function listenToNetworkChanges(changeHandler) {
   if (typeof window !== 'undefined' && window.ethereum) {
-    window.ethereum.on('chainChanged', networkChangeHandler);
+    window.ethereum.on('chainChanged', changeHandler);
   }
-};
+}
 
-// Detect MetaMask installation
-// Time complexity: O(1)
+/**
+ * Utility Functions
+ */
 
-export const isWalletInstalled = () => {
+function checkWalletAvailability() {
   return typeof window !== 'undefined' && !!window.ethereum;
-};
+}
 
-// Generate hash of data using keccak256 algorithm
-// Consistent with Solidity's implementation for contract verification
+function computeDataHash(dataObject) {
+  const jsonSerialized = JSON.stringify(dataObject);
+  return ethers.keccak256(ethers.toUtf8Bytes(jsonSerialized));
+}
 
-export const hashData = (dataObject) => {
-  const jsonString = JSON.stringify(dataObject);
-  return ethers.keccak256(
-    ethers.toUtf8Bytes(jsonString)
-  );
-};
+// Export public API
+export const getProvider = initializeJsonRpcProvider;
+export const getSigner = getSignerFromWallet;
+export const connectWallet = initiateWalletConnection;
+export const getAccount = retrieveConnectedAccount;
+export const getContract = createContractInterface;
+export const getNetworkInfo = fetchNetworkInformation;
+export const getBlockNumber = fetchLatestBlockHeight;
+export const getBalance = fetchAccountBalance;
+export const onAccountChange = listenToAccountChanges;
+export const onNetworkChange = listenToNetworkChanges;
+export const isWalletInstalled = checkWalletAvailability;
+export const hashData = computeDataHash;
 
+/**
+ * Module Export
+ */
 export const alchemyService = {
   getProvider,
   getSigner,
@@ -148,6 +162,13 @@ export const alchemyService = {
   getNetworkInfo,
   getBlockNumber,
   getBalance,
+  onAccountChange,
+  onNetworkChange,
+  isWalletInstalled,
+  hashData
+};
+
+export default alchemyService;
   onAccountChange,
   onNetworkChange,
   isWalletInstalled,

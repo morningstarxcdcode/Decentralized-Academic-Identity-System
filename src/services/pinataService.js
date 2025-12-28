@@ -1,22 +1,28 @@
 import axios from 'axios';
 import { pinataConfig } from '../config/services';
 
-// IPFS pinning service through Pinata - decentralized content storage
-// Implements redundant gateway strategy for reliable retrieval
-// Time complexity: O(1) for individual operations, O(n) for batch operations
+/**
+ * IPFS Pinning Service via Pinata
+ * Provides decentralized content storage with redundant gateway retrieval
+ * Enables immutable, distributed storage of academic credentials
+ * Performance: O(1) upload, O(k) retrieval where k is gateway count
+ */
 
-const PINATA_ENDPOINT = 'https://api.pinata.cloud';
-const IPFS_GATEWAY_URL = 'https://gateway.pinata.cloud/ipfs/';
+const PINATA_API_ENDPOINT = 'https://api.pinata.cloud';
+const PINATA_GATEWAY_URL = 'https://gateway.pinata.cloud/ipfs/';
 
-// Publish JSON data to IPFS network via Pinata pinning service
-// Content addressed by cryptographic hash, immutable storage
-// Time complexity: O(1) request, variable network latency
-export const uploadJSON = async (jsonData, uploadOptions = {}) => {
-  const requestBody = {
-    pinataContent: jsonData,
+/**
+ * JSON Data Upload to IPFS
+ * Stores serialized credential data on IPFS network
+ * Content is addressed by cryptographic hash (CID)
+ */
+
+async function uploadJsonDataToIPFS(dataObject, uploadMetadata = {}) {
+  const uploadPayload = {
+    pinataContent: dataObject,
     pinataMetadata: {
-      name: uploadOptions.name || `credential-${Date.now()}`,
-      keyvalues: uploadOptions.metadata || {}
+      name: uploadMetadata.name || `credential-${Date.now()}`,
+      keyvalues: uploadMetadata.tags || {}
     },
     pinataOptions: {
       cidVersion: 1
@@ -24,9 +30,9 @@ export const uploadJSON = async (jsonData, uploadOptions = {}) => {
   };
 
   try {
-    const uploadResponse = await axios.post(
-      `${PINATA_ENDPOINT}/pinning/pinJSONToIPFS`,
-      requestBody,
+    const responseData = await axios.post(
+      `${PINATA_API_ENDPOINT}/pinning/pinJSONToIPFS`,
+      uploadPayload,
       {
         headers: {
           'Content-Type': 'application/json',
@@ -35,38 +41,41 @@ export const uploadJSON = async (jsonData, uploadOptions = {}) => {
       }
     );
 
-    console.log('[Pinata] JSON content pinned successfully:', uploadResponse.data.IpfsHash);
-    return uploadResponse.data;
-  } catch (err) {
-    console.error('[Pinata] JSON upload error:', err.response?.data || err.message);
+    console.log('Successfully pinned JSON to IPFS:', responseData.data.IpfsHash);
+    return responseData.data;
+  } catch (uploadError) {
+    console.error('JSON upload to IPFS failed:', uploadError.response?.data || uploadError.message);
     throw new Error(
-      `IPFS JSON upload failed: ${err.response?.data?.message || err.message}`
+      `Failed to upload credential to IPFS: ${uploadError.response?.data?.message || uploadError.message}`
     );
   }
-};
+}
 
-// Upload file to IPFS via Pinata with metadata tracking
-// Supports arbitrary file types with custom metadata
-// Time complexity: O(n) where n is file size
-export const uploadFile = async (fileObject, uploadOptions = {}) => {
-  const multipartData = new FormData();
-  multipartData.append('file', fileObject);
+/**
+ * File Upload to IPFS
+ * Stores binary files (PDFs, images, etc.) on IPFS network
+ * Supports metadata tagging and custom naming
+ */
+
+async function uploadFileToIPFS(fileBlob, uploadMetadata = {}) {
+  const formData = new FormData();
+  formData.append('file', fileBlob);
   
-  const metadataConfig = JSON.stringify({
-    name: uploadOptions.name || fileObject.name,
-    keyvalues: uploadOptions.metadata || {}
+  const metadataJson = JSON.stringify({
+    name: uploadMetadata.name || fileBlob.name,
+    keyvalues: uploadMetadata.tags || {}
   });
-  multipartData.append('pinataMetadata', metadataConfig);
+  formData.append('pinataMetadata', metadataJson);
   
-  const pinningConfig = JSON.stringify({
+  const pinningJson = JSON.stringify({
     cidVersion: 1
   });
-  multipartData.append('pinataOptions', pinningConfig);
+  formData.append('pinataOptions', pinningJson);
 
   try {
-    const uploadResponse = await axios.post(
-      `${PINATA_ENDPOINT}/pinning/pinFileToIPFS`,
-      multipartData,
+    const responseData = await axios.post(
+      `${PINATA_API_ENDPOINT}/pinning/pinFileToIPFS`,
+      formData,
       {
         headers: {
           'Authorization': `Bearer ${pinataConfig.jwt}`
@@ -75,107 +84,136 @@ export const uploadFile = async (fileObject, uploadOptions = {}) => {
       }
     );
 
-    console.log('[Pinata] File uploaded successfully:', uploadResponse.data.IpfsHash);
-    return uploadResponse.data;
-  } catch (err) {
-    console.error('[Pinata] File upload error:', err.response?.data || err.message);
+    console.log('Successfully uploaded file to IPFS:', responseData.data.IpfsHash);
+    return responseData.data;
+  } catch (uploadError) {
+    console.error('File upload to IPFS failed:', uploadError.response?.data || uploadError.message);
     throw new Error(
-      `IPFS file upload failed: ${err.response?.data?.message || err.message}`
+      `Failed to upload file to IPFS: ${uploadError.response?.data?.message || uploadError.message}`
     );
   }
-};
+}
 
-// Retrieve IPFS content by hash using gateway fallback strategy
-// Tries multiple gateways for redundancy and availability
-// Time complexity: O(k) where k is number of gateway retries
-export const fetchByCID = async (contentHash) => {
-  const gatewayEndpoints = [
-    `${IPFS_GATEWAY_URL}${contentHash}`,
+/**
+ * Content Retrieval via IPFS Gateway
+ * Implements fallback strategy across multiple gateway providers
+ * Ensures high availability and redundancy for credential access
+ */
+
+async function retrieveContentFromIPFS(contentHash) {
+  // List of IPFS gateway endpoints to try in sequence
+  const ipfsGateways = [
+    `${PINATA_GATEWAY_URL}${contentHash}`,
     `https://ipfs.io/ipfs/${contentHash}`,
     `https://cloudflare-ipfs.com/ipfs/${contentHash}`,
     `https://dweb.link/ipfs/${contentHash}`
   ];
 
-  for (const gatewayUrl of gatewayEndpoints) {
+  // Attempt retrieval from each gateway until success
+  for (const gatewayUrl of ipfsGateways) {
     try {
-      const retrievalResponse = await axios.get(gatewayUrl, { timeout: 10000 });
-      console.log('[IPFS] Content retrieved from gateway:', gatewayUrl);
-      return retrievalResponse.data;
-    } catch (err) {
-      console.warn(`[IPFS] Gateway attempt failed (${gatewayUrl}):`, err.message);
-      continue;
+      const response = await axios.get(gatewayUrl, { timeout: 10000 });
+      console.log('Successfully retrieved content from IPFS gateway:', gatewayUrl);
+      return response.data;
+    } catch (gatewayError) {
+      console.warn(`IPFS gateway unavailable (${gatewayUrl}):`, gatewayError.message);
+      // Continue to next gateway on failure
     }
   }
 
-  throw new Error('IPFS content retrieval failed - no available gateways');
-};
+  // All gateways failed
+  throw new Error('Unable to retrieve content from any IPFS gateway - please try again later');
+}
 
-// List pinned content with optional filtering parameters
-// Useful for auditing and managing stored credentials
-// Time complexity: O(1) API call, O(n) for response processing
-export const getPinList = async (filterOptions = {}) => {
+/**
+ * List Pinned Content
+ * Retrieves inventory of all pinned files with optional filtering
+ */
+
+async function listPinnedContent(filterCriteria = {}) {
   try {
-    const pinnedListResponse = await axios.get(
-      `${PINATA_ENDPOINT}/data/pinList`,
+    const response = await axios.get(
+      `${PINATA_API_ENDPOINT}/data/pinList`,
       {
         headers: {
           'Authorization': `Bearer ${pinataConfig.jwt}`
         },
-        params: filterOptions
+        params: filterCriteria
       }
     );
-    return pinnedListResponse.data;
-  } catch (err) {
-    console.error('[Pinata] Pin list retrieval failed:', err.message);
-    throw err;
+    return response.data;
+  } catch (queryError) {
+    console.error('Failed to retrieve pinned content list:', queryError.message);
+    throw queryError;
   }
-};
+}
 
-// Unpin and remove content from Pinata node
-// Time complexity: O(1)
-export const unpin = async (contentHash) => {
+/**
+ * Unpin Content
+ * Removes content from Pinata node (no longer accessible via gateway)
+ */
+
+async function unpinContentFromIPFS(contentHash) {
   try {
     await axios.delete(
-      `${PINATA_ENDPOINT}/pinning/unpin/${contentHash}`,
+      `${PINATA_API_ENDPOINT}/pinning/unpin/${contentHash}`,
       {
         headers: {
           'Authorization': `Bearer ${pinataConfig.jwt}`
         }
       }
     );
-    console.log('[Pinata] Content unpinned successfully:', contentHash);
-  } catch (err) {
-    console.error('[Pinata] Unpin operation failed:', err.message);
-    throw err;
+    console.log('Successfully unpinned content:', contentHash);
+  } catch (unpinError) {
+    console.error('Failed to unpin content:', unpinError.message);
+    throw unpinError;
   }
-};
+}
 
-// Generate publicly accessible IPFS gateway URL
-// Time complexity: O(1) string concatenation
-export const getGatewayUrl = (contentHash) => {
-  return `${IPFS_GATEWAY_URL}${contentHash}`;
-};
+/**
+ * Gateway URL Generation
+ * Creates public, IPFS-compliant URL for content retrieval
+ */
 
-// Validate Pinata API authentication and connectivity
-// Time complexity: O(1)
-export const testConnection = async () => {
+function generateGatewayURL(contentHash) {
+  return `${PINATA_GATEWAY_URL}${contentHash}`;
+}
+
+/**
+ * Connection Validation
+ * Verifies Pinata API authentication and service availability
+ */
+
+async function validatePinataConnection() {
   try {
-    const authTestResponse = await axios.get(
-      `${PINATA_ENDPOINT}/data/testAuthentication`,
+    const response = await axios.get(
+      `${PINATA_API_ENDPOINT}/data/testAuthentication`,
       {
         headers: {
           'Authorization': `Bearer ${pinataConfig.jwt}`
         }
       }
     );
-    console.log('[Pinata] Connection validated successfully:', authTestResponse.data);
+    console.log('Pinata connection validated successfully');
     return true;
-  } catch (err) {
-    console.error('[Pinata] Connection validation failed:', err.message);
+  } catch (connectionError) {
+    console.error('Pinata connection validation failed:', connectionError.message);
     return false;
   }
-};
+}
 
+// Export public API
+export const uploadJSON = uploadJsonDataToIPFS;
+export const uploadFile = uploadFileToIPFS;
+export const fetchByCID = retrieveContentFromIPFS;
+export const getPinList = listPinnedContent;
+export const unpin = unpinContentFromIPFS;
+export const getGatewayUrl = generateGatewayURL;
+export const testConnection = validatePinataConnection;
+
+/**
+ * Module Export
+ */
 export const pinataService = {
   uploadJSON,
   uploadFile,

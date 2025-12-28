@@ -1,15 +1,19 @@
 import { ethers } from 'ethers';
 import { alchemyConfig } from '../config/services';
 
-// Contract ABI - matches CredentialRegistry.sol
+/**
+ * Smart Contract ABI Definition
+ * Defines the interface to the CredentialRegistry smart contract on Polygon blockchain
+ * These signatures must match the deployed Solidity contract exactly
+ */
 const CONTRACT_ABI = [
-  // Events
+  // Events - emit when state changes on blockchain
   "event IssuerAuthorized(address indexed issuerAddress, string name)",
   "event IssuerRevoked(address indexed issuerAddress)",
   "event CredentialIssued(bytes32 indexed credHash, address indexed issuer, string studentDID)",
   "event CredentialRevoked(bytes32 indexed credHash, address indexed issuer)",
   
-  // Read functions
+  // Read-only functions - no gas cost, view contract state
   "function admin() view returns (address)",
   "function credentials(bytes32) view returns (address issuer, string studentName, string studentDID, string courseName, bytes32 credHash, string ipfsCID, uint256 timestamp, bool isValid, bool isRevoked)",
   "function authorizedIssuers(address) view returns (string name, bool isAuthorized, uint256 registeredAt)",
@@ -17,401 +21,513 @@ const CONTRACT_ABI = [
   "function getAllCredentialHashes() view returns (bytes32[])",
   "function isValidCredential(bytes32 _credHash) view returns (bool)",
   
-  // Write functions
+  // State-modifying functions - require gas and user signature
   "function authorizeIssuer(address _issuer, string _name)",
   "function revokeIssuer(address _issuer)",
-  "function issueCredential(string _studentName, string _studentDID, string _courseName, string _ipfsCID, bytes32 _credHash)",
+  "function issueCredential(string _studentName, string _studentDID, string _courseName, string _ipfsCIC, bytes32 _credHash)",
   "function revokeCredential(bytes32 _credHash)"
 ];
 
-// Contract address - UPDATE THIS after deploying to Polygon
-// For now using a placeholder - you need to deploy the contract
+// Smart contract address deployed on Polygon network
+// Must be updated after contract deployment and set in environment variables
 const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS || null;
 
-let provider = null;
-let contract = null;
+// Cached provider instances to reuse connections
+let cachedProvider = null;
+let cachedReadContract = null;
 
-// Initialize RPC provider instance - Alchemy endpoint for read operations
-// O(1) initialization with singleton pattern to reuse provider connection
+/**
+ * RPC Provider Management
+ * Initializes and caches JSON RPC provider for blockchain read operations
+ * Uses Alchemy API endpoint for reliable, scalable access
+ * Singleton pattern prevents creating multiple provider instances
+ */
 
-export const getProvider = () => {
+function createJsonRpcProvider() {
+  const alchemyRpcUrl = `https://${alchemyConfig.network}.g.alchemy.com/v2/${alchemyConfig.apiKey}`;
+  return new ethers.JsonRpcProvider(alchemyRpcUrl);
+}
+
+function initializeReadProvider() {
   if (cachedProvider) {
     return cachedProvider;
   }
-
-  const alchemyRpcUrl = `https://${alchemyConfig.network}.g.alchemy.com/v2/${alchemyConfig.apiKey}`;
-  cachedProvider = new ethers.JsonRpcProvider(alchemyRpcUrl);
   
+  cachedProvider = createJsonRpcProvider();
   return cachedProvider;
-};
+}
 
-// Access MetaMask provider for write transactions
-// Requires user approval and connected wallet
+export const getProvider = initializeReadProvider;
 
-export const getBrowserProvider = () => {
+/**
+ * Browser Provider (MetaMask)
+ * Accesses the user's MetaMask wallet for transaction signing
+ * Throws if MetaMask is not installed or available
+ */
+
+function getBrowserWalletProvider() {
   if (typeof window === 'undefined' || !window.ethereum) {
-    throw new Error('MetaMask wallet not detected. Please install MetaMask browser extension.');
+    throw new Error('MetaMask wallet not detected. Please install MetaMask browser extension to continue.');
   }
   
   return new ethers.BrowserProvider(window.ethereum);
-};
+}
 
-// Retrieve contract instance for read-only operations
-// Uses Alchemy RPC for efficient data retrieval
+export const getBrowserProvider = getBrowserWalletProvider;
 
-export const getReadContract = () => {
+/**
+ * Contract Read Interface
+ * Returns a contract instance bound to the read-only provider
+ * Enables querying contract state without user interaction
+ */
+
+function initializeReadContract() {
   if (!CONTRACT_ADDRESS) {
-    console.warn('Contract address not configured - operating in demo mode');
+    console.warn('Contract address not configured. Running in demonstration mode.');
     return null;
   }
 
-  if (cachedContract) {
-    return cachedContract;
+  if (cachedReadContract) {
+    return cachedReadContract;
   }
 
-  cachedContract = new ethers.Contract(
+  cachedReadContract = new ethers.Contract(
     CONTRACT_ADDRESS, 
     CONTRACT_ABI, 
     getProvider()
   );
 
-  return cachedContract;
-};
+  return cachedReadContract;
+}
 
-// Get contract instance with user's signer for state-changing operations
-// Connects through MetaMask for transaction signing
+export const getReadContract = initializeReadContract;
 
-export const getWriteContract = async () => {
+/**
+ * Contract Write Interface
+ * Returns a contract instance bound to user's wallet signer
+ * Enables state-changing operations that require user approval and transaction fees
+ */
+
+async function initializeWriteContract() {
   if (!CONTRACT_ADDRESS) {
-    throw new Error('Smart contract address not configured. Please deploy contract first.');
+    throw new Error('Smart contract address not configured. Please deploy the contract first.');
   }
 
-  const browserProvider = getBrowserProvider();
-  const userSigner = await browserProvider.getSigner();
+  const userWalletProvider = getBrowserProvider();
+  const userSigningKey = await userWalletProvider.getSigner();
   
   return new ethers.Contract(
     CONTRACT_ADDRESS, 
     CONTRACT_ABI, 
-    userSigner
+    userSigningKey
   );
-};
+}
 
-// Wallet connection handler - initiates MetaMask account selection
-// Time complexity: O(1) - direct MetaMask request
+export const getWriteContract = initializeWriteContract;
 
-export const connectWallet = async () => {
+/**
+ * Wallet Connection Management
+ * Handles MetaMask account selection and blockchain access permissions
+ */
+
+async function requestWalletConnection() {
   if (typeof window === 'undefined' || !window.ethereum) {
-    throw new Error('MetaMask wallet not found. Install MetaMask to use this application.');
+    throw new Error('MetaMask wallet not found. Please install MetaMask browser extension first.');
   }
   
   try {
-    const userAccounts = await window.ethereum.request({
+    const accountList = await window.ethereum.request({
       method: 'eth_requestAccounts'
     });
     
-    return userAccounts[0];
-  } catch (err) {
-    throw err;
+    return accountList[0];
+  } catch (connectionError) {
+    throw new Error(`Failed to connect wallet: ${connectionError.message}`);
   }
-};
+}
 
-// Retrieve currently connected account without user prompt
-// Returns null if no wallet connected
-
-export const getAccount = async () => {
+async function fetchConnectedAccount() {
   if (typeof window === 'undefined' || !window.ethereum) {
     return null;
   }
   
   try {
-    const userAccounts = await window.ethereum.request({
+    const accountList = await window.ethereum.request({
       method: 'eth_accounts'
-export const isWalletConnected = async () => {
-  const connectedAccount = await getAccount();
+    });
+    
+    return accountList.length > 0 ? accountList[0] : null;
+  } catch (fetchError) {
+    console.error('Failed to fetch connected account:', fetchError);
+    return null;
+  }
+}
+
+async function verifyWalletConnection() {
+  const connectedAccount = await fetchConnectedAccount();
   return !!connectedAccount;
-};
+}
 
-export const isWalletInstalled = () => {
+function checkWalletInstallation() {
   return typeof window !== 'undefined' && !!window.ethereum;
-};
+}
 
-// Fetch current blockchain network metadata
-// Time complexity: O(1) - single RPC call
+export const connectWallet = requestWalletConnection;
+export const getAccount = fetchConnectedAccount;
+export const isWalletConnected = verifyWalletConnection;
+export const isWalletInstalled = checkWalletInstallation;
 
-export const getNetworkInfo = async () => {
+/**
+ * Blockchain Network Information
+ * Provides metadata about the connected blockchain network
+ */
+
+async function fetchNetworkMetadata() {
   const network = await getProvider().getNetwork();
   
   return {
     name: network.name,
     chainId: Number(network.chainId)
   };
-};
+}
 
-// Query latest block height - useful for monitoring blockchain sync
-// O(1) operation
-
-export const getBlockNumber = async () => {
+async function fetchLatestBlockHeight() {
   return await getProvider().getBlockNumber();
-};
+}
 
-// Retrieve account token balance in native currency
-// Time complexity: O(1)
-
-export const getBalance = async (addressToCheck) => {
-  const balanceInWei = await getProvider().getBalance(addressToCheck);
-  return ethers.formatEther(balanceInWei () => {
-  return await getProvider().getBlockNumber();
-};
+export const getNetworkInfo = fetchNetworkMetadata;
+export const getBlockNumber = fetchLatestBlockHeight;
 
 /**
- * Get account balance
+ * Account Balance Queries
+ * Retrieves the native currency balance for a given address in MATIC
  */
-export const getBalance = async (address) => {
-  const balance = await getProvider().getBalance(address);
-  return ethers.formatEther(balance);
-};
+
+async function retrieveAccountBalance(walletAddress) {
+  const balanceInWei = await getProvider().getBalance(walletAddress);
+  return ethers.formatEther(balanceInWei);
+}
+
+export const getBalance = retrieveAccountBalance;
 
 /**
- * Hash credential data
+ * Credential Hashing
+ * Computes Keccak256 hash of credential data
+ * Hash must match the hash generated on-chain for verification
+ * Time complexity: O(n) where n is the size of serialized credential data
  */
-export const hashCredential = (data) => {
-  const jsonString = JSON.stringify(data);
- / Compute cryptographic hash of credential data
-// Uses Keccak256 algorithm consistent with Solidity hashing
-// Time complexity: O(n) where n is input size
 
-export const hashCredential = (credentialObject) => {
-  const jsonSerialized = JSON.stringify(credentialObject);
-  return ethers.keccak256(
-    ethers.toUtf8Bytes(jsonSerialized)
-  );
-};
+function computeCredentialHash(credentialData) {
+  const serializedJson = JSON.stringify(credentialData);
+  const hashBytes = ethers.keccak256(ethers.toUtf8Bytes(serializedJson));
+  return hashBytes;
+}
 
-// Verify if address holds issuer authorization
-// Time complexity: O(1) - direct contract lookup
+export const hashCredential = computeCredentialHash;
 
-export const isAuthorizedIssuer = async (issuerAddress) => {
-  const readableContract = getReadContract();
+/**
+ * Issuer Verification
+ * Checks if an address has been granted issuer rights on the contract
+ */
+
+async function checkIssuerAuthorization(issuerAddress) {
+  const contract = getReadContract();
   
-  if (!readableContract) {
+  if (!contract) {
     return false;
   }
   
   try {
-    const issuerData = await readableContract.authorizedIssuers(issuerAddress);
-    return issuerData.isAuthorized;
-  } catch (err) {
-    console.error('Issuer verification failed:', err);
+    const issuerRecord = await contract.authorizedIssuers(issuerAddress);
+    return issuerRecord.isAuthorized;
+  } catch (verificationError) {
+    console.error('Issuer authorization check failed:', verificationError);
     return false;
   }
-};
+}
 
-// Retrieve issuer metadata and authorization status
-// Time complexity: O(1)
-
-export const getIssuerInfo = async (issuerAddress) => {
-  const readableContract = getReadContract();
+async function retrieveIssuerMetadata(issuerAddress) {
+  const contract = getReadContract();
   
-  if (!readableContract) {
+  if (!contract) {
     return null;
   }
   
   try {
-    const issuerRecord = await readableContract.authorizedIssuers(issuerAddress);
+    const issuerRecord = await contract.authorizedIssuers(issuerAddress);
     
     return {
- / Publish credential record to blockchain
-// Performs write transaction that modifies contract state
-// Time complexity: O(1) execution, variable gas cost
+      name: issuerRecord.name,
+      isAuthorized: issuerRecord.isAuthorized,
+      registeredAt: Number(issuerRecord.registeredAt)
+    };
+  } catch (fetchError) {
+    console.error('Failed to fetch issuer metadata:', fetchError);
+    return null;
+  }
+}
 
-export const issueCredentialOnChain = async (
+export const isAuthorizedIssuer = checkIssuerAuthorization;
+export const getIssuerInfo = retrieveIssuerMetadata;
+
+/**
+ * Credential Issuance
+ * Records a new academic credential on the blockchain
+ * Creates an immutable record of the credential with associated metadata
+ */
+
+async function recordCredentialOnBlockchain(
   studentName, 
   studentDID, 
   courseName, 
   ipfsCID, 
   credentialHash
-) => {
-  const signedContract = await getWriteContract();
+) {
+  const contract = await getWriteContract();
   
-  const transaction = await signedContract.issueCredential(
-    studentName,
-    studentDID,
-    courseName,
-    ipfsCID,
-    credentialHash
-  );
-  
-  console.log('Transaction hash:', transaction.hash);
-  
-  const receipt = await transaction.wait();
-  console.log('Block confirmation:', receipt.blockNumber);
-  
-  return {
-    txHash: transaction.hash,
-    blockNumber: receipt.blockNumber
-  };
-};
+  try {
+    const transaction = await contract.issueCredential(
+      studentName,
+      studentDID,
+      courseName,
+      ipfsCID,
+      credentialHash
+    );
+    
+    console.log('Credential issuance transaction hash:', transaction.hash);
+    
+    // Wait for blockchain confirmation
+    const receipt = await transaction.wait();
+    console.log('Transaction confirmed in block:', receipt.blockNumber);
+    
+    return {
+      txHash: transaction.hash,
+      blockNumber: receipt.blockNumber
+    };
+  } catch (issuanceError) {
+    throw new Error(`Failed to issue credential: ${issuanceError.message}`);
+  }
+}
 
-// Invalidate credential on blockchain - marks as revoked
-// Time complexity: O(1) execution
+/**
+ * Credential Revocation
+ * Marks a credential as revoked on the blockchain
+ * Revoked credentials are no longer considered valid
+ */
 
-export const revokeCredentialOnChain = async (credentialHash) => {
-  const signedContract = await getWriteContract();
+async function markCredentialAsRevoked(credentialHash) {
+  const contract = await getWriteContract();
   
-  const transaction = await signedContract.revokeCredential(credentialHash);
-  const receipt = await transaction.wait();
-  
-  return {
-    txHash: transaction.hash,
-    blockNumber: receipt.blockNumber
-  };
-};
+  try {
+    const transaction = await contract.revokeCredential(credentialHash);
+    const receipt = await transaction.wait();
+    
+    return {
+      txHash: transaction.hash,
+      blockNumber: receipt.blockNumber
+    };
+  } catch (revocationError) {
+    throw new Error(`Failed to revoke credential: ${revocationError.message}`);
+  }
+}
 
-// Grant issuer permissions to contract (admin only)
-// Time complexity: O(1)
+/**
+ * Issuer Authorization
+ * Grants issuer rights to an address (admin operation)
+ */
 
-export const authorizeIssuerOnChain = async (issuerAddress, issuerName) => {
-  const signedContract = await getWriteContract();
+async function authorizeNewIssuer(issuerAddress, issuerDisplayName) {
+  const contract = await getWriteContract();
   
-  const transaction = await signedContract.authorizeIssuer(issuerAddress, issuerName);
- / Retrieve complete credential details from blockchain
-// Time complexity: O(1)
+  try {
+    const transaction = await contract.authorizeIssuer(issuerAddress, issuerDisplayName);
+    const receipt = await transaction.wait();
+    
+    return {
+      txHash: transaction.hash,
+      blockNumber: receipt.blockNumber
+    };
+  } catch (authError) {
+    throw new Error(`Failed to authorize issuer: ${authError.message}`);
+  }
+}
 
-export const getCredentialFromChain = async (credentialHash) => {
-  const readableContract = getReadContract();
+export const issueCredentialOnChain = recordCredentialOnBlockchain;
+export const revokeCredentialOnChain = markCredentialAsRevoked;
+export const authorizeIssuerOnChain = authorizeNewIssuer;
+
+/**
+ * Credential Retrieval and Verification
+ * Queries the blockchain for credential details and validity status
+ */
+
+async function fetchCredentialFromBlockchain(credentialHash) {
+  const contract = getReadContract();
   
-  if (!readableContract) {
+  if (!contract) {
     return null;
   }
   
   try {
-    const credentialRecord = await readableContract.getCredential(credentialHash);
+    const credentialData = await contract.getCredential(credentialHash);
     
     return {
-      issuer: credentialRecord.issuer,
-      studentName: credentialRecord.studentName,
-      studentDID: credentialRecord.studentDID,
-      courseName: credentialRecord.courseName,
-      credHash: credentialRecord.credHash,
-      ipfsCID: credentialRecord.ipfsCID,
-      timestamp: Number(credentialRecord.timestamp),
-      isValid: credentialRecord.isValid,
-      isRevoked: credentialRecord.isRevoked
+      issuer: credentialData.issuer,
+      studentName: credentialData.studentName,
+      studentDID: credentialData.studentDID,
+      courseName: credentialData.courseName,
+      credHash: credentialData.credHash,
+      ipfsCID: credentialData.ipfsCID,
+      timestamp: Number(credentialData.timestamp),
+      isValid: credentialData.isValid,
+      isRevoked: credentialData.isRevoked
     };
-  } catch (err) {
-    console.error('Credential retrieval error:', err);
+  } catch (retrievalError) {
+    console.error('Failed to fetch credential from blockchain:', retrievalError);
     return null;
   }
-};
+}
 
-// Verify credential authenticity and revocation status
-// Time complexity: O(1) - single contract lookup
-
-export const verifyCredentialOnChain = async (credentialHash) => {
-  const readableContract = getReadContract();
+async function validateCredentialAuthenticity(credentialHash) {
+  const contract = getReadContract();
   
-  if (!readableContract) {
+  if (!contract) {
     return {
       valid: false,
-      message: 'Smart contract not configured'
+      message: 'Smart contract interface not available'
     };
   }
   
   try {
-    const isCredentialValid = await readableContract.isValidCredential(credentialHash);
-    const credentialRecord = await readableContract.getCredential(credentialHash);
+    const isValid = await contract.isValidCredential(credentialHash);
+    const credentialRecord = await contract.getCredential(credentialHash);
     
-    // Check if credential exists (timestamp will be 0 for non-existent)
+    // Check if credential exists by verifying timestamp is non-zero
     if (credentialRecord.timestamp === 0n) {
       return {
         valid: false,
-        message: 'Credential not found on blockchain'
+        message: 'Credential does not exist on blockchain'
       };
     }
     
     return {
-      valid: isCredentialValid,
+      valid: isValid,
       credential: {
         issuer: credentialRecord.issuer,
         studentName: credentialRecord.studentName,
         studentDID: credentialRecord.studentDID,
         courseName: credentialRecord.courseName,
- / Fetch all credential identifiers in existence
-// Time complexity: O(n) where n is total credentials
-// Note: May be expensive for large datasets - consider pagination
+        timestamp: Number(credentialRecord.timestamp),
+        ipfsCID: credentialRecord.ipfsCID
+      }
+    };
+  } catch (verifyError) {
+    console.error('Credential verification failed:', verifyError);
+    return {
+      valid: false,
+      message: 'Verification operation failed'
+    };
+  }
+}
 
-export const getAllCredentialHashes = async () => {
-  const readableContract = getReadContract();
+/**
+ * Credential Discovery
+ * Retrieves all credential identifiers from the blockchain
+ * Performance note: O(n) operation - may be expensive for large datasets
+ */
+
+async function fetchAllCredentialIdentifiers() {
+  const contract = getReadContract();
   
-  if (!readableContract) {
+  if (!contract) {
     return [];
   }
   
   try {
-    const hashes = await readableContract.getAllCredentialHashes();
-    return hashes;
-  } catch (err) {
-    console.error('Error retrieving credential hashes:', err);
+    const credentialHashes = await contract.getAllCredentialHashes();
+    return credentialHashes;
+  } catch (queryError) {
+    console.error('Failed to fetch credential hashes:', queryError);
     return [];
   }
-};
+}
 
-// Subscribe to account changes via MetaMask event
-// Useful for detecting wallet switches
+export const getCredentialFromChain = fetchCredentialFromBlockchain;
+export const verifyCredentialOnChain = validateCredentialAuthenticity;
+export const getAllCredentialHashes = fetchAllCredentialIdentifiers;
 
-export const onAccountChange = (accountChangeCallback) => {
+/**
+ * MetaMask Event Listeners
+ * Responds to wallet and network changes
+ */
+
+function subscribeToAccountChanges(changeCallback) {
   if (typeof window !== 'undefined' && window.ethereum) {
-    window.ethereum.on('accountsChanged', accountChangeCallback);
+    window.ethereum.on('accountsChanged', changeCallback);
   }
-};
+}
 
-// Subscribe to network changes
-// Called when user switches blockchain networks
-
-export const onNetworkChange = (networkChangeCallback) => {
+function subscribeToNetworkChanges(changeCallback) {
   if (typeof window !== 'undefined' && window.ethereum) {
-    window.ethereum.on('chainChanged', networkChangeCallback);
+    window.ethereum.on('chainChanged', changeCallback);
   }
-};
+}
 
-// Switch active network to Polygon mainnet
-// May prompt user if chain not already configured
+export const onAccountChange = subscribeToAccountChanges;
+export const onNetworkChange = subscribeToNetworkChanges;
 
-export const switchToPolygon = async () => {
+/**
+ * Network Switching
+ * Switches MetaMask to Polygon network
+ * Prompts user to add Polygon if not already configured
+ */
+
+async function switchToPolygonNetwork() {
   if (!window.ethereum) {
-    throw new Error('MetaMask not installed');
+    throw new Error('MetaMask extension not found. Please install MetaMask first.');
   }
   
-  const POLYGON_CHAIN_ID = '0x89'; // 137 in hexadecimal
+  const POLYGON_CHAIN_ID = '0x89'; // Decimal 137 in hexadecimal format
   
   try {
+    // Try to switch to Polygon if already configured
     await window.ethereum.request({
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: POLYGON_CHAIN_ID }]
     });
-  } catch (switchErr) {
-    // Chain not yet added - add it
-    if (switchErr.code === 4902) {
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [{
-          chainId: POLYGON_CHAIN_ID,
-          chainName: 'Polygon Mainnet',
-          nativeCurrency: {
-            name: 'MATIC',
-            symbol: 'MATIC',
-            decimals: 18
-          },
-          rpcUrls: ['https://polygon-rpc.com'],
-          blockExplorerUrls: ['https://polygonscan.com']
-        }]
-      });
+  } catch (switchError) {
+    // Chain not yet added to MetaMask - add it now
+    if (switchError.code === 4902) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: POLYGON_CHAIN_ID,
+            chainName: 'Polygon Mainnet',
+            nativeCurrency: {
+              name: 'MATIC',
+              symbol: 'MATIC',
+              decimals: 18
+            },
+            rpcUrls: ['https://polygon-rpc.com'],
+            blockExplorerUrls: ['https://polygonscan.com']
+          }]
+        });
+      } catch (addError) {
+        throw new Error(`Failed to add Polygon network: ${addError.message}`);
+      }
     } else {
-      throw switchErr;
+      throw new Error(`Failed to switch to Polygon: ${switchError.message}`);
     }
   }
-};
+}
 
+export const switchToPolygon = switchToPolygonNetwork;
+
+/**
+ * Module Export
+ * Public API for blockchain interactions
+ */
 export const contractService = {
   getProvider,
   getBrowserProvider,
